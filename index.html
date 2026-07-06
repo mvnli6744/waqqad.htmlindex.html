@@ -5,17 +5,18 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0d1117">
 <title>وقّاد — نسخة تجريبية</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://www.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
-<!-- Firebase SDK (optional - only loads if FIREBASE_CONFIG is set below) -->
+<!-- Firebase SDK loads lazily at runtime, only when FIREBASE_CONFIG below is filled in — zero extra bytes are downloaded until sync is actually enabled. -->
   <!-- To enable cross-device sync:
     1. Go to console.firebase.google.com
     2. Create project → Realtime Database → Start in test mode
     3. Project Settings → Web app → Copy config
     4. Replace null in FIREBASE_CONFIG below with your config
-    5. Re-upload to Netlify
+    5. Push/re-upload — the Firebase SDK then loads automatically for everyone
   -->
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <style>*{box-sizing:border-box;margin:0;padding:0}
 :root{--bg:#0d1117;--p1:#161b22;--p2:#21262d;--brd:#30363d;--amb:#e8a33d;--tl:#3fb39a;--rd:#e25c5c;--og:#e08a4d;--tx:#e6edf3;--dm:#8b949e;--fn:#484f58}
 body{font-family:Cairo,-apple-system,Arial,sans-serif;background:var(--bg);color:var(--tx);min-height:100vh;font-size:13px}
@@ -138,26 +139,51 @@ ri();
 var ST_role=null, ST_page="dash", ST_target=null, ST_admin=null;
 var ST_forceL=false, ST_selV=null, ST_opName="", ST_drvName="";
 
-/* ── Firebase init ── */
+/* ── Firebase init (SDK loads lazily, only when configured — saves data otherwise) ── */
+var logsListenerOn=false;
+function loadFirebaseScripts(cb){
+  if(window.firebase){cb();return;}
+  var s1=document.createElement("script");
+  s1.src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js";
+  s1.onerror=function(){fbReady=false;};
+  s1.onload=function(){
+    var s2=document.createElement("script");
+    s2.src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js";
+    s2.onload=cb;
+    s2.onerror=function(){fbReady=false;};
+    document.head.appendChild(s2);
+  };
+  document.head.appendChild(s1);
+}
 function initFB(){
   if(!FIREBASE_CONFIG||!FIREBASE_CONFIG.apiKey){fbReady=false;return;}
-  try{
-    var app=firebase.initializeApp(FIREBASE_CONFIG);
-    fbDB=firebase.database(app);
-    fbReady=true;
-    /* Real-time admin refresh */
-    fbDB.ref("logs").on("value",function(snap){
-      if(ST_role==="admin"||ST_role==="owner"){
-        if(document.getElementById("MP"))renderPage();
-      }
-    });
-    fbDB.ref("admins").on("value",function(snap){
-      if(snap.exists()){var a=snap.val();if(a&&a.length){}/* loaded fresh on demand */}
-    });
-    fbDB.ref("fleetOv").on("value",function(snap){
-      if(snap.exists()){try{var ov=snap.val();applyOv(ov?JSON.parse(ov):{a:[],d:[]});}catch(e){}}
-    });
-  }catch(e){console.error("Firebase init failed:",e);fbReady=false;}
+  loadFirebaseScripts(function(){
+    try{
+      var app=firebase.initializeApp(FIREBASE_CONFIG);
+      fbDB=firebase.database(app);
+      fbReady=true;
+      fbDB.ref("admins").on("value",function(snap){
+        if(snap.exists()){var a=snap.val();if(a&&a.length){}/* loaded fresh on demand */}
+      });
+      fbDB.ref("fleetOv").on("value",function(snap){
+        if(snap.exists()){try{var ov=snap.val();applyOv(ov?JSON.parse(ov):{a:[],d:[]});}catch(e){}}
+      });
+      ensureLogsListener();
+      if(!ST_role)render(); /* refresh the gate's sync indicator once the connection is actually ready */
+    }catch(e){console.error("Firebase init failed:",e);fbReady=false;}
+  });
+}
+/* Only stream the full fuel-log history to admin/owner sessions — drivers just write their own entry, so their devices never download the whole fleet history */
+function ensureLogsListener(){
+  if(!fbDB)return;
+  var need=fbReady&&(ST_role==="admin"||ST_role==="owner");
+  if(need&&!logsListenerOn){
+    fbDB.ref("logs").on("value",function(snap){if(document.getElementById("MP"))renderPage();});
+    logsListenerOn=true;
+  } else if(!need&&logsListenerOn){
+    fbDB.ref("logs").off("value");
+    logsListenerOn=false;
+  }
 }
 
 /* ── Storage (Firebase or localStorage) ── */
@@ -227,6 +253,7 @@ function navTo(pg){ST_page=pg;renderPage();}
 
 /* ── Render root ── */
 function render(){
+  ensureLogsListener();
   if(ST_role==="auth"){rAuth(loadAdm());return;}
   if(!ST_role){rGate();return;}
   if(ST_role==="driver"){rDriver(loadLogs());return;}
@@ -573,6 +600,10 @@ window.addEventListener("DOMContentLoaded",function(){
   initFB();
   render();
 });
+/* Cache the app shell so repeat opens cost near-zero data (Firebase's live socket still runs for real-time sync) */
+if("serviceWorker" in navigator){
+  window.addEventListener("load",function(){navigator.serviceWorker.register("./sw.js").catch(function(){});});
+}
 
 </script>
 </body></html>
