@@ -141,7 +141,7 @@ var ST_capturedPhotos={}; /* fieldId -> compressed JPEG Blob, cleared after each
 var logsListenerOn=false, logsUnsub=null;
 function loadFirebaseScripts(cb){
   if(window.firebase){cb();return;}
-  var parts=["app","auth","firestore","storage"];
+  var parts=["app","auth","firestore"]; /* "storage" intentionally left out — photo attachments are on hold until Storage is enabled on the Firebase project */
   (function next(i){
     if(i>=parts.length){cb();return;}
     var s=document.createElement("script");
@@ -228,14 +228,15 @@ function saveLog(entry,photos,cb){
   var vRef=fsDB.collection("vehicles").doc(entry.plate);
   var photoFields={};
   var uploads=[];
+  var storageOn=typeof firebase.storage==="function"; /* Storage SDK isn't loaded while the feature is off — skip cleanly instead of throwing */
   /* Photo attachment is best-effort: a Storage hiccup (or Storage not being
      enabled at all) must never block saving the actual fuel record. */
-  if(photos&&photos.prev)uploads.push(
+  if(storageOn&&photos&&photos.prev)uploads.push(
     firebase.storage().ref("logPhotos/"+ref.id+"/prev.jpg").put(photos.prev,{contentType:"image/jpeg"})
       .then(function(snap){return snap.ref.getDownloadURL();}).then(function(url){photoFields.photoPrev=url;})
       .catch(function(e){console.error("photo upload (prev) failed, saving entry without it:",e);})
   );
-  if(photos&&photos.curr)uploads.push(
+  if(storageOn&&photos&&photos.curr)uploads.push(
     firebase.storage().ref("logPhotos/"+ref.id+"/curr.jpg").put(photos.curr,{contentType:"image/jpeg"})
       .then(function(snap){return snap.ref.getDownloadURL();}).then(function(url){photoFields.photoCurr=url;})
       .catch(function(e){console.error("photo upload (curr) failed, saving entry without it:",e);})
