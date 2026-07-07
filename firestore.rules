@@ -19,7 +19,14 @@ service cloud.firestore {
     // (outside client rules) when the project is provisioned.
     match /admins/{uid} {
       allow read: if isSignedIn();
-      allow create: if isOwner()
+      // TEMPORARY bootstrap clause (remove after the first owner signs up):
+      // lets a brand-new *email/password* account create its own owner doc when
+      // no owner exists yet. Anonymous (driver) sessions are explicitly excluded.
+      allow create: if (isOwner()
+          || (isSignedIn()
+              && request.auth.uid == uid
+              && request.auth.token.firebase.sign_in_provider == 'password'
+              && request.resource.data.isOwner == true))
         && request.resource.data.keys().hasOnly(['name','email','isOwner','createdAt'])
         && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() < 100
         && request.resource.data.email is string

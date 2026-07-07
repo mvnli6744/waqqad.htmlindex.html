@@ -111,126 +111,137 @@ var RM={"سيارة بكب 1 كابينة":{"u":"km","lo":9.0,"hi":14.0,"t":11.5
    Firebase Sync + Camera OCR + localStorage fallback
    ================================================================ */
 
-/* ── Firebase Config (paste your config here after creating project) ──
-   1. console.firebase.google.com → New project → Realtime Database
-   2. Project settings → Web app → Get config
-   3. Replace null below with your config object
-*/
-var FIREBASE_CONFIG = null;
-/* Waiting on one missing value: databaseURL (Realtime Database → the URL shown at
-   the top of the database page, e.g. https://wagad-502-default-rtdb.firebaseio.com
-   or https://wagad-502-default-rtdb.<region>.firebasedatabase.app). Once that's in,
-   set FIREBASE_CONFIG to:
+/* ── Firebase Config — project wagad-502. Backend: Firebase Auth (email/password
+   for owner/admin, anonymous for drivers) + Cloud Firestore. ── */
 var FIREBASE_CONFIG = {
   apiKey:"AIzaSyBqiDkxXfs7x2p4bxDdNbB3D4GHBvBzBh0",
   authDomain:"wagad-502.firebaseapp.com",
-  databaseURL:"PASTE_HERE",
   projectId:"wagad-502",
   storageBucket:"wagad-502.firebasestorage.app",
   messagingSenderId:"609720816669",
   appId:"1:609720816669:web:42e6b5a5e6c834542222f4"
 };
-*/
 
 var CO="شركة الأساس العريض للمقاولات";
 var MC_HASH="hynq0in";
-var PX="wq_"; var SAR=2.18;
+var SAR=2.18;
 var AF=[].concat(FD), FP={};
-var fbDB=null, fbReady=false;
+var fbDB=null, fbReady=false, fsDB=null;
+var CUR_USER=null;
+var LOGS_CACHE=[], ADMINS_CACHE=[], OV_CACHE={a:[],d:[]};
 
 function ri(){FP={};for(var i=0;i<AF.length;i++)FP[AF[i].p]=AF[i];}
 ri();
 
 /* ── State ── */
-var ST_role=null, ST_page="dash", ST_target=null, ST_admin=null;
-var ST_forceL=false, ST_selV=null, ST_opName="", ST_drvName="";
+var ST_role=null, ST_page="dash", ST_target=null, ST_admin=null, ST_authMode="signin";
+var ST_selV=null, ST_opName="", ST_drvName="", ST_lastReading=null;
 
 /* ── Firebase init (SDK loads lazily, only when configured — saves data otherwise) ── */
-var logsListenerOn=false;
+var logsListenerOn=false, logsUnsub=null;
 function loadFirebaseScripts(cb){
   if(window.firebase){cb();return;}
-  var parts=["app","auth","database"];
+  var parts=["app","auth","firestore"];
   (function next(i){
     if(i>=parts.length){cb();return;}
     var s=document.createElement("script");
     s.src="https://www.gstatic.com/firebasejs/9.23.0/firebase-"+parts[i]+"-compat.js";
     s.onload=function(){next(i+1);};
-    s.onerror=function(){fbReady=false;};
+    s.onerror=function(){fbReady=false;render();};
     document.head.appendChild(s);
   })(0);
 }
 function initFB(){
-  if(!FIREBASE_CONFIG||!FIREBASE_CONFIG.apiKey){fbReady=false;return;}
+  if(!FIREBASE_CONFIG||!FIREBASE_CONFIG.apiKey){fbReady=false;render();return;}
   loadFirebaseScripts(function(){
     try{
       var app=firebase.initializeApp(FIREBASE_CONFIG);
-      fbDB=firebase.database(app);
-      /* Anonymous auth so Realtime Database rules can require auth!=null instead of staying wide open to the internet */
-      firebase.auth(app).signInAnonymously().then(function(){
-        fbReady=true;
-        fbDB.ref("admins").on("value",function(snap){
-          if(snap.exists()){var a=snap.val();if(a&&a.length){}/* loaded fresh on demand */}
-        });
-        fbDB.ref("fleetOv").on("value",function(snap){
-          if(snap.exists()){try{var ov=snap.val();applyOv(ov?JSON.parse(ov):{a:[],d:[]});}catch(e){}}
-        });
-        ensureLogsListener();
-        if(!ST_role)render(); /* refresh the gate's sync indicator once the connection is actually ready */
-      }).catch(function(e){console.error("Firebase auth failed:",e);fbReady=false;});
-    }catch(e){console.error("Firebase init failed:",e);fbReady=false;}
+      fsDB=firebase.firestore(app);
+      fsDB.enablePersistence({synchronizeTabs:true}).catch(function(){});
+      fbReady=true;
+      fsDB.collection("fleetOv").doc("current").onSnapshot(function(doc){
+        OV_CACHE=doc.exists?doc.data():{a:[],d:[]};
+        applyOv(OV_CACHE);
+        if(document.getElementById("MP"))renderPage();
+      },function(){/* not signed in yet — will refire once auth resolves */});
+      firebase.auth(app).onAuthStateChanged(onAuthChanged);
+    }catch(e){console.error("Firebase init failed:",e);fbReady=false;render();}
+  });
+}
+/* Restores the session on load/reload: real accounts map to their admins/{uid}
+   profile, anonymous sessions are drivers, no user means show the gate. */
+function onAuthChanged(user){
+  CUR_USER=user;
+  if(!user){ if(ST_role===null||ST_role==="auth")render(); return; }
+  if(user.isAnonymous){
+    ST_opName=getOp();ST_drvName=ST_opName;
+    ST_role=ST_opName?"driver":ST_role;
+    render();
+    return;
+  }
+  fsDB.collection("admins").doc(user.uid).get().then(function(doc){
+    if(!doc.exists){firebase.auth().signOut();return;}
+    var d=doc.data();
+    ST_admin={id:user.uid,n:d.name,email:d.email,isOwner:!!d.isOwner};
+    ST_role=ST_admin.isOwner?"owner":"admin";
+    ST_page="dash";
+    ensureLogsListener();
+    render();
   });
 }
 /* Only stream the full fuel-log history to admin/owner sessions — drivers just write their own entry, so their devices never download the whole fleet history */
 function ensureLogsListener(){
-  if(!fbDB)return;
+  if(!fsDB)return;
   var need=fbReady&&(ST_role==="admin"||ST_role==="owner");
   if(need&&!logsListenerOn){
-    fbDB.ref("logs").on("value",function(snap){if(document.getElementById("MP"))renderPage();});
     logsListenerOn=true;
+    logsUnsub=fsDB.collection("logs").orderBy("createdAt","desc").onSnapshot(function(snap){
+      LOGS_CACHE=snap.docs.map(function(d){var o=d.data();o.id=d.id;return o;});
+      if(document.getElementById("MP"))renderPage();
+    });
   } else if(!need&&logsListenerOn){
-    fbDB.ref("logs").off("value");
-    logsListenerOn=false;
+    if(logsUnsub)logsUnsub();
+    logsListenerOn=false;LOGS_CACHE=[];
   }
 }
 
-/* ── Storage (Firebase or localStorage) ── */
-function lg(k){try{return localStorage.getItem(PX+k);}catch(e){return null;}}
-function ls(k,v){try{localStorage.setItem(PX+k,v);return true;}catch(e){return false;}}
-function ld(k){try{localStorage.removeItem(PX+k);}catch(e){}}
-function lk(p){try{return Object.keys(localStorage).filter(function(k){return k.startsWith(PX+p);}).map(function(k){return k.slice(PX.length);});}catch(e){return[];}}
+/* ── Storage (Firestore + a couple of harmless local-only prefs) ── */
+function lg(k){try{return localStorage.getItem("wq_"+k);}catch(e){return null;}}
+function ls(k,v){try{localStorage.setItem("wq_"+k,v);return true;}catch(e){return false;}}
+function loadLogs(){return LOGS_CACHE;}
+function saveLog(entry,cb){
+  if(!fbReady||!fsDB){if(cb)cb(false);return;}
+  var ref=fsDB.collection("logs").doc();
+  var data=Object.assign({},entry,{createdAt:firebase.firestore.FieldValue.serverTimestamp()});
+  var vRef=fsDB.collection("vehicles").doc(entry.plate);
+  var batch=fsDB.batch();
+  batch.set(ref,data);
+  batch.set(vRef,{lastCurr:entry.curr,lastDate:entry.date,lastTime:entry.time||"",lastDriverName:entry.driverName||""});
+  batch.commit().then(function(){if(cb)cb(true);}).catch(function(e){console.error(e);if(cb)cb(false);});
+}
+function patchLog(e){if(fbReady&&fsDB)fsDB.collection("logs").doc(e.id).update({reviewed:e.reviewed});}
 
-function loadLogs(){
-  var keys=lk("fl:");
-  return keys.map(function(k){var r=lg(k);try{return r?JSON.parse(r):null;}catch(e){return null;}}).filter(Boolean)
-    .sort(function(a,b){return new Date(b.date+"T"+(b.time||"00:00"))-new Date(a.date+"T"+(a.time||"00:00"));});
-}
-function saveLog(e,cb){
-  ls("fl:"+e.id,JSON.stringify(e));
-  if(fbReady&&fbDB){fbDB.ref("logs/"+e.id).set(e).then(function(){if(cb)cb(true);}).catch(function(){if(cb)cb(false);});}
-  else{if(cb)cb(true);}
-}
-function patchLog(e){ls("fl:"+e.id,JSON.stringify(e));if(fbReady&&fbDB)fbDB.ref("logs/"+e.id).set(e);}
-
-function loadAdm(){
-  var r=lg("adm");return r?JSON.parse(r):[];
-}
-function saveAdm(a){
-  ls("adm",JSON.stringify(a));
-  if(fbReady&&fbDB)fbDB.ref("admins").set(JSON.stringify(a));
-  return true;
-}
-function loadRem(){var r=lg("rem");return r?JSON.parse(r):null;}
-function saveRem(n,h){ls("rem",JSON.stringify({n:n,h:h}));}
-function clearRem(){ld("rem");}
+function loadAdm(){return ADMINS_CACHE;}
 function getOp(){return lg("op")||"";}
 function setOp(v){ls("op",v);}
-function loadOv(){var r=lg("ov");return r?JSON.parse(r):{a:[],d:[]};}
-function saveOv(o){ls("ov",JSON.stringify(o));if(fbReady&&fbDB)fbDB.ref("fleetOv").set(JSON.stringify(o));applyOv(o);}
+function loadOv(){return OV_CACHE;}
+function saveOv(o){if(fbReady&&fsDB)fsDB.collection("fleetOv").doc("current").set(o);applyOv(o);}
 function applyOv(o){var d=new Set(o.d||[]);AF=FD.filter(function(v){return !d.has(v.p);}).concat(o.a||[]);ri();}
 
 /* ── Utils ── */
-function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,5);}
 function hp(pw){var h=0,s="wq_"+pw;for(var i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))|0;return "h"+Math.abs(h).toString(36);}
+function authErr(e){
+  var m={
+    "auth/invalid-email":"البريد الإلكتروني غير صالح",
+    "auth/user-not-found":"الحساب غير موجود",
+    "auth/wrong-password":"كلمة المرور غير صحيحة",
+    "auth/invalid-credential":"البيانات غير صحيحة",
+    "auth/email-already-in-use":"البريد الإلكتروني مستخدم مسبقاً",
+    "auth/weak-password":"كلمة المرور ضعيفة جداً (6 أحرف على الأقل)",
+    "auth/too-many-requests":"محاولات كثيرة، حاول لاحقاً"
+  };
+  return m[e.code]||e.message;
+}
 function fmt(n,d){if(n==null||isNaN(n))return "—";d=d==null?1:d;return Number(n).toLocaleString("en-US",{minimumFractionDigits:d,maximumFractionDigits:d});}
 function pct(n,d){if(n==null||isNaN(n))return "—";d=d==null?1:d;return(n*100).toLocaleString("en-US",{minimumFractionDigits:d,maximumFractionDigits:d})+"%";}
 function toast(m,ic){var el=document.getElementById("T");el.innerHTML="<span>"+(ic||"✅")+"</span><span>"+m+"</span>";el.style.display="flex";clearTimeout(window._tt);window._tt=setTimeout(function(){el.style.display="none";},2500);}
@@ -242,36 +253,38 @@ function calcE(plate,prev,curr,liters){
   if(dev!=null){var a=Math.abs(dev);if(a<=0.05){st="green";sl="طبيعي";}else if(a<=0.2){st="yellow";sl="انحراف بسيط";}else if(a<=0.4){st="orange";sl="يحتاج مراجعة";}else{st="red";sl="إهدار / خطأ";}}
   return {diff:diff,ar:ar,dev:dev,st:st,sl:sl,ref:ref?ref.t:null,un:ref?ref.u:null};
 }
-function lastR(plate){
-  var e=loadLogs().filter(function(l){return l.plate===plate;}).sort(function(a,b){return b.curr-a.curr;});
-  return e.length?e[0].curr:null;
-}
-
 /* ── Action helpers (no string args for onclick safety) ── */
-function goOwner(){ST_target="owner";ST_role="auth";render();}
-function goAdmin(){ST_target="admin";ST_role="auth";render();}
-function goDriver(){ST_opName=getOp();ST_drvName=ST_opName;ST_role="driver";render();}
-function goBack(){ST_role=null;ST_forceL=false;render();}
-function goLogout(){ST_role=null;ST_admin=null;ST_forceL=false;ST_opName="";ST_selV=null;render();}
-function goForce(){ST_forceL=true;render();}
-function goClearRem(){clearRem();ST_forceL=true;render();}
+function goOwner(){ST_target="owner";ST_role="auth";ST_authMode="signin";render();}
+function goAdmin(){ST_target="admin";ST_role="auth";ST_authMode="signin";render();}
+function goDriver(){
+  if(!fbReady){toast("تعذّر الاتصال — تأكد من الإنترنت","⚠️");return;}
+  if(CUR_USER&&CUR_USER.isAnonymous){
+    ST_opName=getOp();ST_drvName=ST_opName;ST_role="driver";render();return;
+  }
+  if(CUR_USER&&!CUR_USER.isAnonymous)firebase.auth().signOut();
+  firebase.auth().signInAnonymously().then(function(){
+    ST_opName=getOp();ST_drvName=ST_opName;ST_role="driver";render();
+  }).catch(function(){toast("تعذّر الدخول، تأكد من الاتصال","❌");});
+}
+function goBack(){ST_role=null;render();}
+function goLogout(){if(fbReady)firebase.auth().signOut();ST_role=null;ST_admin=null;ST_opName="";ST_selV=null;ST_lastReading=null;render();}
 function goChOp(){ST_opName="";setOp("");render();}
 function navTo(pg){ST_page=pg;renderPage();}
 
 /* ── Render root ── */
 function render(){
   ensureLogsListener();
-  if(ST_role==="auth"){rAuth(loadAdm());return;}
+  if(ST_role==="auth"){rAuth();return;}
   if(!ST_role){rGate();return;}
-  if(ST_role==="driver"){rDriver(loadLogs());return;}
-  rAdmin(loadLogs(),loadAdm());
+  if(ST_role==="driver"){rDriver();return;}
+  rAdmin();
 }
 
 /* ── Gate ── */
 function rGate(){
   var syncInfo=fbReady?
     '<div style="margin-top:10px;font-size:11px;color:var(--tl)">🟢 المزامنة مفعّلة — البيانات متزامنة على كل الأجهزة</div>':
-    '<div style="margin-top:10px;font-size:11px;color:var(--dm)">🟠 وضع محلي — ارفع الملف على Netlify للحصول على رابط مشترك</div>';
+    '<div style="margin-top:10px;font-size:11px;color:var(--dm)">⏳ جارٍ الاتصال بالخادم...</div>';
   document.getElementById("A").innerHTML=
     '<div class="gate"><div class="gc">'+
     '<div style="display:flex;align-items:center;justify-content:center;gap:11px;margin-bottom:10px">'+
@@ -288,62 +301,59 @@ function rGate(){
     '</div></div></div>';
 }
 
-/* ── Auth ── */
-function rAuth(admins){
-  var el=document.getElementById("A"),noOwner=admins.length===0;
-  var rem=loadRem(),rm=null;
-  if(rem&&!noOwner)for(var i=0;i<admins.length;i++){if(admins[i].n===rem.n&&admins[i].h===rem.h){rm=admins[i];break;}}
-  if(rm&&!ST_forceL){
-    el.innerHTML='<div class="gate"><div class="gc"><div class="ac">'+
-      '<div class="at">مرحباً، '+rm.n+'</div>'+
-      '<div class="as">هذا الجهاز محفوظ لحسابك '+(rm.isOwner?"(المالك)":"(مشرف)")+'.</div>'+
-      '<button class="sb" id="btnQL">متابعة كـ '+rm.n+' →</button>'+
-      '<button class="bk" onclick="goForce()">حساب آخر</button>'+
-      '<button style="background:none;border:none;color:var(--fn);font-size:11px;cursor:pointer;margin-top:7px;width:100%" onclick="goClearRem()">هذا ليس جهازي — مسح</button>'+
-      '</div></div></div>';
-    document.getElementById("btnQL").onclick=function(){ST_admin=rm;ST_role=rm.isOwner?"owner":"admin";ST_page="dash";render();};
-    return;
-  }
-  var isOw=ST_target==="owner";
+/* ── Auth (Firebase email/password) ── */
+function rAuth(){
+  var el=document.getElementById("A"),isOw=ST_target==="owner";
+  var signup=isOw&&ST_authMode==="signup";
   el.innerHTML='<div class="gate"><div class="gc"><div class="ac">'+
-    '<div class="at">'+(noOwner?"إعداد حساب المالك":isOw?"دخول المالك":"دخول المشرف")+'</div>'+
-    '<div class="as">'+(noOwner?"أول دخول — أنشئ حساب المالك.":"أدخل بياناتك للدخول.")+'</div>'+
-    '<div class="fl"><label>الاسم</label><input type="text" id="iN" placeholder="'+(noOwner?"مثال: منصور الدوسري":"اسمك")+'"></div>'+
-    '<div class="fl"><label>كلمة المرور</label><input type="password" id="iP"></div>'+
-    (noOwner?'<div class="fl"><label>تأكيد كلمة المرور</label><input type="password" id="iP2"></div>'+
+    '<div class="at">'+(signup?"إعداد حساب المالك":isOw?"دخول المالك":"دخول المشرف")+'</div>'+
+    '<div class="as">'+(signup?"أول دخول — أنشئ حساب المالك.":"أدخل بريدك الإلكتروني وكلمة المرور.")+'</div>'+
+    (signup?'<div class="fl"><label>الاسم</label><input type="text" id="iN" placeholder="مثال: منصور الدوسري"></div>':"")+
+    '<div class="fl"><label>البريد الإلكتروني</label><input type="email" id="iEm" placeholder="name@example.com" autocomplete="username"></div>'+
+    '<div class="fl"><label>كلمة المرور</label><input type="password" id="iP" autocomplete="'+(signup?"new-password":"current-password")+'"></div>'+
+    (signup?'<div class="fl"><label>تأكيد كلمة المرور</label><input type="password" id="iP2"></div>'+
     '<div class="cw"><label>🔑 كود الإعداد السري</label><input type="password" id="iC" placeholder="أدخل الكود السري"></div>':"")+
-    '<label class="rl"><input type="checkbox" id="iRm" checked> احفظ بيانات الدخول على هذا الجهاز</label>'+
     '<div class="ae" id="iE"></div>'+
-    '<button class="sb" id="btnGo">'+(noOwner?"إنشاء الحساب والدخول":"دخول →")+'</button>'+
+    '<button class="sb" id="btnGo">'+(signup?"إنشاء الحساب والدخول":"دخول →")+'</button>'+
+    (isOw?'<button style="background:none;border:none;color:var(--dm);font-size:11.5px;cursor:pointer;margin-top:9px;width:100%" id="btnToggle">'+(signup?"عندك حساب؟ دخول":"أول مرة؟ إعداد حساب المالك")+'</button>':"")+
     '<button class="bk" onclick="goBack()">رجوع</button>'+
     '</div></div></div>';
+  var toggleBtn=document.getElementById("btnToggle");
+  if(toggleBtn)toggleBtn.onclick=function(){ST_authMode=signup?"signin":"signup";render();};
   function go(){
-    var name=(document.getElementById("iN").value||"").trim();
+    var errEl=document.getElementById("iE");errEl.textContent="";
+    var email=(document.getElementById("iEm").value||"").trim();
     var pass=document.getElementById("iP").value||"";
-    var errEl=document.getElementById("iE");
-    errEl.textContent="";
-    if(!name){errEl.textContent="❌ الرجاء إدخال الاسم";return;}
-    if(pass.length<4){errEl.textContent="❌ كلمة المرور 4 أحرف على الأقل";return;}
-    var remCk=document.getElementById("iRm").checked;
-    var h=hp(pass),adms=loadAdm();
-    if(adms.length===0){
-      var p2=(document.getElementById("iP2")||{value:""}).value||"";
-      var code=(document.getElementById("iC")||{value:""}).value.trim();
-      if(pass!==p2){errEl.textContent="❌ كلمتا المرور غير متطابقتين";return;}
-      if(hp(code)!==MC_HASH){errEl.textContent="❌ كود الإعداد غير صحيح";return;}
-      var owner={id:uid(),n:name,h:h,isOwner:true,dt:new Date().toISOString().slice(0,10)};
-      if(!saveAdm([owner])){errEl.textContent="❌ تعذّر الحفظ";return;}
-      if(remCk)saveRem(name,h);else clearRem();
-      ST_admin=owner;ST_role="owner";ST_page="dash";ST_forceL=false;
-      toast("تم إنشاء حساب المالك ✨","");render();
+    if(!email){errEl.textContent="❌ الرجاء إدخال البريد الإلكتروني";return;}
+    if(pass.length<6){errEl.textContent="❌ كلمة المرور 6 أحرف على الأقل";return;}
+    var btn=document.getElementById("btnGo");btn.disabled=true;
+    if(signup){
+      var name=(document.getElementById("iN").value||"").trim();
+      var p2=document.getElementById("iP2").value||"";
+      var code=(document.getElementById("iC").value||"").trim();
+      if(!name){errEl.textContent="❌ الرجاء إدخال الاسم";btn.disabled=false;return;}
+      if(pass!==p2){errEl.textContent="❌ كلمتا المرور غير متطابقتين";btn.disabled=false;return;}
+      if(hp(code)!==MC_HASH){errEl.textContent="❌ كود الإعداد غير صحيح";btn.disabled=false;return;}
+      firebase.auth().createUserWithEmailAndPassword(email,pass).then(function(cred){
+        return fsDB.collection("admins").doc(cred.user.uid).set({
+          name:name,email:email,isOwner:true,createdAt:firebase.firestore.FieldValue.serverTimestamp()
+        }).then(function(){
+          ST_admin={id:cred.user.uid,n:name,email:email,isOwner:true};
+          ST_role="owner";ST_page="dash";
+          toast("تم إنشاء حساب المالك ✨","");render();
+        });
+      }).catch(function(e){errEl.textContent="❌ "+authErr(e);btn.disabled=false;});
     } else {
-      var match=null;
-      for(var i=0;i<adms.length;i++){if(adms[i].n===name&&adms[i].h===h){match=adms[i];break;}}
-      if(!match){errEl.textContent="❌ الاسم أو كلمة المرور غير صحيحة";return;}
-      if(isOw&&!match.isOwner){errEl.textContent="❌ هذا الحساب ليس بصلاحية المالك";return;}
-      if(remCk)saveRem(name,h);else clearRem();
-      ST_admin=match;ST_role=match.isOwner?"owner":"admin";ST_page="dash";ST_forceL=false;
-      toast("أهلاً "+name,"✅");render();
+      firebase.auth().signInWithEmailAndPassword(email,pass).then(function(cred){
+        return fsDB.collection("admins").doc(cred.user.uid).get().then(function(doc){
+          if(!doc.exists){errEl.textContent="❌ هذا الحساب غير مسجل كمشرف";firebase.auth().signOut();btn.disabled=false;return;}
+          var d=doc.data();
+          if(isOw&&!d.isOwner){errEl.textContent="❌ هذا الحساب ليس بصلاحية المالك";firebase.auth().signOut();btn.disabled=false;return;}
+          ST_admin={id:cred.user.uid,n:d.name,email:d.email,isOwner:!!d.isOwner};
+          ST_role=ST_admin.isOwner?"owner":"admin";ST_page="dash";
+          toast("أهلاً "+d.name,"✅");render();
+        });
+      }).catch(function(e){errEl.textContent="❌ "+authErr(e);btn.disabled=false;});
     }
   }
   document.getElementById("btnGo").onclick=go;
@@ -362,7 +372,7 @@ function tb(){
     ' <button class="ob" onclick="goLogout()">خروج</button></div></div>'+
     (fbReady?
       '<div class="sbar ok"><span class="sdot"></span>🟢 مزامنة مباشرة مفعّلة — البيانات تظهر على كل الأجهزة فوراً</div>':
-      '<div class="sbar local"><span class="sdot loc"></span>🟠 وضع محلي — ارفع الملف على <a href="https://netlify.com/drop" target="_blank" style="color:var(--amb)">netlify.com/drop</a> للحصول على رابط مشترك</div>');
+      '<div class="sbar local"><span class="sdot loc"></span>⏳ جارٍ الاتصال بالخادم...</div>');
 }
 
 /* ── Admin shell ── */
@@ -372,7 +382,7 @@ var ON=[["dash","لوحة المالك","📊"],["act","النشاط الحي","
 var AN=[["dash","لوحة التحكم","📊"],["alrt","التنبيهات","🚨"],["log","سجل التعبئة","📝"],
         ["flt","الأسطول","🚛"],["roi","الجدوى","💡"]];
 function navH(nav,cls){return nav.map(function(n){return '<button class="'+cls+(ST_page===n[0]?" on":"")+" npg"+'" data-pg="'+n[0]+'">'+n[2]+" "+n[1]+"</button>";}).join("");}
-function rAdmin(logs,admins){
+function rAdmin(){
   var nav=ST_role==="owner"?ON:AN;
   document.getElementById("A").innerHTML=tb()+'<div class="lay"><div class="snv"><div class="ns">'+(ST_role==="owner"?"المالك":"القوائم")+"</div>"+navH(nav,"nb")+"</div>"+'<div class="mp" id="MP"></div></div>'+'<div class="mtt">'+navH(nav.slice(0,5),"mt")+"</div>";
   document.querySelectorAll(".npg").forEach(function(btn){btn.addEventListener("click",function(){navTo(this.dataset.pg);});});
@@ -380,7 +390,15 @@ function rAdmin(logs,admins){
 }
 function renderPage(){
   var mp=document.getElementById("MP");if(!mp)return;
-  var logs=loadLogs(),admins=loadAdm();
+  if(ST_page==="usr"){
+    fsDB.collection("admins").get().then(function(snap){
+      ADMINS_CACHE=snap.docs.map(function(d){var v=d.data();return{id:d.id,n:v.name,email:v.email,isOwner:!!v.isOwner};});
+      var mp2=document.getElementById("MP");if(!mp2)return;
+      mp2.innerHTML=pUsr(ADMINS_CACHE);bndUsr();
+    });
+    return;
+  }
+  var logs=loadLogs();
   if(ST_page==="dash")mp.innerHTML=pDash(logs);
   else if(ST_page==="act")mp.innerHTML=pAct(logs);
   else if(ST_page==="drv")mp.innerHTML=pDrv(logs);
@@ -388,7 +406,6 @@ function renderPage(){
   else if(ST_page==="log"){mp.innerHTML=pLog();rLR();}
   else if(ST_page==="flt"){mp.innerHTML=pFlt();rFR();}
   else if(ST_page==="fmg"){mp.innerHTML=pFmg();rFmR();}
-  else if(ST_page==="usr"){mp.innerHTML=pUsr(admins);bndUsr(admins);}
   else if(ST_page==="roi")mp.innerHTML=pROI(logs);
 }
 function agg(logs){
@@ -401,7 +418,7 @@ function pDash(logs){
   for(var i=0;i<logs.length;i++){var l=logs[i];if(l.dev==null)continue;if(!byP[l.plate])byP[l.plate]=[];byP[l.plate].push(l.dev);}
   var top=Object.keys(byP).map(function(p){var d=byP[p];return{p:p,avg:d.reduce(function(a,b){return a+b;},0)/d.length,n:d.length};}).sort(function(a,b){return b.avg-a.avg;}).slice(0,6);
   var r='<div class="ph"><h1>'+(ST_role==="owner"?"لوحة المالك":"لوحة التحكم")+'</h1><p>'+AF.length+" مركبة · "+logs.length+" عملية مسجّلة</p></div>";
-  if(ST_role==="owner")r+='<div class="op"><h2>👑 وضع المالك</h2><p>'+(fbReady?"🟢 المزامنة الفورية مفعّلة — كل التعبئات تظهر هنا في الحال.":"🟠 وضع محلي — لتفعيل المزامنة: اقرأ التعليمات في الملف.")+"</p></div>";
+  if(ST_role==="owner")r+='<div class="op"><h2>👑 وضع المالك</h2><p>'+(fbReady?"🟢 المزامنة الفورية مفعّلة — كل التعبئات تظهر هنا في الحال.":"⏳ جارٍ الاتصال بالخادم...")+"</p></div>";
   r+='<div class="kg"><div class="kc kcb"><div class="kb"></div><div class="kl">الأسطول</div><div class="kv">'+AF.length+'</div></div><div class="kc kca"><div class="kb"></div><div class="kl">التعبئات</div><div class="kv">'+logs.length+'</div><div class="ks">'+a.td+' اليوم</div></div><div class="kc kct"><div class="kb"></div><div class="kl">إجمالي اللترات</div><div class="kv">'+fmt(a.tot,0)+'</div></div><div class="kc kcr"><div class="kb"></div><div class="kl">تنبيهات</div><div class="kv">'+a.open.length+'</div></div></div>';
   r+='<div class="g2"><div class="card"><div class="ch"><h2>أعلى 6 مركبات إهداراً</h2></div>';
   if(!top.length)r+=es("📭","بانتظار أول تسجيلات","");
@@ -456,14 +473,39 @@ function pFmg(){
   return r;
 }
 function rFmR(){var ov=loadOv();var added=new Set((ov.a||[]).map(function(v){return v.p;}));var s=(document.getElementById("fmS")||{value:""}).value.trim();var rows=AF.filter(function(v){return !s||v.p.includes(s)||v.u.includes(s);});var tb=document.getElementById("fmTb");if(!tb)return;var h="";for(var i=0;i<Math.min(rows.length,300);i++){var v=rows[i];h+="<tr><td class='num'>"+v.p+"</td><td>"+v.u+"</td><td>"+(v.m||"—")+"</td><td>"+(v.l||"—")+"</td><td><span class='bg "+(added.has(v.p)?"green":"gray")+"'>"+(added.has(v.p)?"مضافة":"أصلية")+"</span></td><td><button class='btn btnd' style='font-size:10px;padding:4px 8px' data-dp='"+v.p+"'>حذف</button></td></tr>";}tb.innerHTML=h;document.querySelectorAll("[data-dp]").forEach(function(btn){btn.addEventListener("click",function(){var pl=this.dataset.dp;if(!confirm("حذف "+pl+"؟"))return;var ov2=loadOv();if(ov2.d.indexOf(pl)<0)ov2.d.push(pl);ov2.a=(ov2.a||[]).filter(function(v){return v.p!==pl;});saveOv(ov2);toast("حُذفت "+pl,"🗑️");renderPage();});});var fa=document.getElementById("btnFA");if(fa)fa.onclick=function(){var pl=(document.getElementById("fP")||{value:""}).value.trim();var us=(document.getElementById("fU")||{value:""}).value;var mk=(document.getElementById("fM")||{value:""}).value.trim();var lc=(document.getElementById("fL")||{value:""}).value.trim();var err=document.getElementById("fErr");err.textContent="";if(!pl){err.textContent="رقم اللوحة مطلوب";return;}if(!us){err.textContent="نوع الاستخدام مطلوب";return;}for(var i=0;i<AF.length;i++){if(AF[i].p===pl){err.textContent="هذه اللوحة موجودة مسبقاً";return;}}var nv={p:pl,u:us,m:mk,mo:"",l:lc};var ov2=loadOv();ov2.a=(ov2.a||[]);ov2.a.push(nv);ov2.d=(ov2.d||[]).filter(function(p){return p!==pl;});saveOv(ov2);toast("أُضيفت "+pl,"🚗");renderPage();};var fmsi=document.getElementById("fmS");if(fmsi)fmsi.oninput=rFmR;}
-function pUsr(admins){if(!ST_admin||!ST_admin.isOwner)return '<div class="card">'+es("🔒","للمالك فقط","")+"</div>";var r='<div class="ph"><h1>إدارة المستخدمين</h1></div><div class="card"><div class="ch"><h2>إضافة مشرف جديد</h2></div><div class="fr"><div class="fl"><label>الاسم</label><input type="text" id="uN"></div><div class="fl"><label>كلمة المرور</label><input type="password" id="uP" placeholder="4 أحرف على الأقل"></div></div><div id="uErr" style="color:var(--rd);font-size:12px;margin-bottom:9px"></div><button class="btn btnp" id="btnUA">➕ إضافة المشرف</button></div><div class="card"><div class="ch"><h2>المستخدمون ('+admins.length+')</h2></div><div class="tw"><table><thead><tr><th>الاسم</th><th>الصلاحية</th><th>تاريخ</th><th></th></tr></thead><tbody>';for(var i=0;i<admins.length;i++){var u=admins[i];r+="<tr><td><b>"+u.n+"</b></td><td><span class='bg "+(u.isOwner?"ow2":"blue")+"'>"+(u.isOwner?"مالك":"مشرف")+"</span></td><td class='num'>"+u.dt+"</td><td>"+(u.isOwner?"":'<button class="btn btnd" style="font-size:10px;padding:4px 8px" data-rmid="'+u.id+'">إزالة</button>')+"</td></tr>";}return r+"</tbody></table></div></div>";}
-function bndUsr(admins){document.querySelectorAll("[data-rmid]").forEach(function(btn){btn.addEventListener("click",function(){var id=this.dataset.rmid;var adms=loadAdm().filter(function(u){return u.id!==id;});saveAdm(adms);toast("تمت الإزالة","✅");renderPage();});});var ua=document.getElementById("btnUA");if(ua)ua.onclick=function(){var name=(document.getElementById("uN")||{value:""}).value.trim();var pass=(document.getElementById("uP")||{value:""}).value;var err=document.getElementById("uErr");err.textContent="";if(!name){err.textContent="الرجاء إدخال الاسم";return;}if(pass.length<4){err.textContent="4 أحرف على الأقل";return;}var adms=loadAdm();for(var i=0;i<adms.length;i++){if(adms[i].n===name){err.textContent="يوجد مستخدم بهذا الاسم";return;}}var nu={id:uid(),n:name,h:hp(pass),isOwner:false,dt:new Date().toISOString().slice(0,10)};adms.push(nu);if(!saveAdm(adms)){err.textContent="تعذّر الحفظ";return;}toast("أُضيف "+name,"✅");renderPage();};}
+function pUsr(admins){if(!ST_admin||!ST_admin.isOwner)return '<div class="card">'+es("🔒","للمالك فقط","")+"</div>";var r='<div class="ph"><h1>إدارة المستخدمين</h1></div><div class="card"><div class="ch"><h2>إضافة مشرف جديد</h2></div><div class="fr"><div class="fl"><label>الاسم</label><input type="text" id="uN"></div><div class="fl"><label>البريد الإلكتروني</label><input type="email" id="uEm"></div></div><div class="fl"><label>كلمة المرور</label><input type="password" id="uP" placeholder="6 أحرف على الأقل"></div><div id="uErr" style="color:var(--rd);font-size:12px;margin-bottom:9px"></div><button class="btn btnp" id="btnUA">➕ إضافة المشرف</button></div><div class="card"><div class="ch"><h2>المستخدمون ('+admins.length+')</h2></div><div class="tw"><table><thead><tr><th>الاسم</th><th>البريد</th><th>الصلاحية</th><th></th></tr></thead><tbody>';for(var i=0;i<admins.length;i++){var u=admins[i];r+="<tr><td><b>"+u.n+"</b></td><td>"+(u.email||"—")+"</td><td><span class='bg "+(u.isOwner?"ow2":"blue")+"'>"+(u.isOwner?"مالك":"مشرف")+"</span></td><td>"+(u.isOwner?"":'<button class="btn btnd" style="font-size:10px;padding:4px 8px" data-rmid="'+u.id+'">إزالة</button>')+"</td></tr>";}return r+"</tbody></table></div></div>";}
+function bndUsr(){
+  document.querySelectorAll("[data-rmid]").forEach(function(btn){btn.addEventListener("click",function(){
+    var id=this.dataset.rmid;
+    fsDB.collection("admins").doc(id).delete().then(function(){toast("تمت الإزالة","✅");navTo("usr");}).catch(function(){toast("تعذّر الحذف","❌");});
+  });});
+  var ua=document.getElementById("btnUA");
+  if(ua)ua.onclick=function(){
+    var name=(document.getElementById("uN")||{value:""}).value.trim();
+    var email=(document.getElementById("uEm")||{value:""}).value.trim();
+    var pass=(document.getElementById("uP")||{value:""}).value;
+    var err=document.getElementById("uErr");err.textContent="";
+    if(!name){err.textContent="الرجاء إدخال الاسم";return;}
+    if(!email){err.textContent="الرجاء إدخال البريد الإلكتروني";return;}
+    if(pass.length<6){err.textContent="6 أحرف على الأقل";return;}
+    ua.disabled=true;
+    var secApp=firebase.apps.filter(function(a){return a.name==="Secondary";})[0]||firebase.initializeApp(FIREBASE_CONFIG,"Secondary");
+    var secAuth=firebase.auth(secApp);
+    secAuth.createUserWithEmailAndPassword(email,pass).then(function(cred){
+      var newUid=cred.user.uid;
+      return secAuth.signOut().then(function(){
+        return fsDB.collection("admins").doc(newUid).set({name:name,email:email,isOwner:false,createdAt:firebase.firestore.FieldValue.serverTimestamp()});
+      });
+    }).then(function(){toast("أُضيف "+name,"✅");ua.disabled=false;navTo("usr");})
+    .catch(function(e){err.textContent=authErr(e);ua.disabled=false;});
+  };
+}
 function pROI(logs){var a=agg(logs),w=a.avg==null?0:Math.max(0,a.avg),wc=a.tot*w*SAR,sv=wc*12*0.7;return '<div class="ph"><h1>الجدوى المالية</h1><p>بناءً على '+logs.length+' عملية.</p></div><div class="kg"><div class="kc kct"><div class="kb"></div><div class="kl">إجمالي اللترات</div><div class="kv">'+fmt(a.tot,0)+'</div></div><div class="kc kca"><div class="kb"></div><div class="kl">التكلفة (ريال)</div><div class="kv">'+fmt(a.tot*SAR,0)+'</div></div><div class="kc kcr"><div class="kb"></div><div class="kl">قيمة الإهدار</div><div class="kv">'+fmt(wc,0)+'</div></div><div class="kc kct"><div class="kb"></div><div class="kl">وفورات سنوية</div><div class="kv">'+fmt(sv,0)+'</div></div></div><div class="card"><div class="ch"><h2>متوسط الإهدار</h2></div><div style="font-size:26px;font-weight:800;color:'+(a.avg!=null&&Math.abs(a.avg)>0.2?"var(--rd)":"var(--tl)")+';">'+(a.avg!=null?pct(Math.abs(a.avg)):"—")+'</div></div>';}
 
 /* ── DRIVER MODE ── */
-function rDriver(logs){
+function rDriver(){
   document.getElementById("A").innerHTML=tb()+'<div class="dw" id="DP"></div>';
-  if(!ST_opName)rOpG();else rDE(logs);
+  if(!ST_opName)rOpG();else rDE();
 }
 function rOpG(){
   var p=document.getElementById("DP");if(!p)return;
@@ -532,11 +574,15 @@ function extractNumber(canvas){
   }catch(e){return null;}
 }
 
-function rDE(logs){
+function rDE(){
   var dp=document.getElementById("DP");if(!dp)return;
-  var v=ST_selV,ref=v?RM[v.u]:null,lRv=v?lastR(v.p):null;
+  var v=ST_selV,ref=v?RM[v.u]:null,lRv=(v&&ST_lastReading)?ST_lastReading.lastCurr:null;
   var recent="";
-  if(v){var r2=(logs||loadLogs()).filter(function(l){return l.plate===v.p;}).slice(0,5);if(r2.length){recent='<div class="dc"><div class="dt" style="font-size:13px">آخر عمليات هذه المركبة</div>';for(var i=0;i<r2.length;i++){var l=r2[i];recent+='<div class="rii"><div><div class="num" style="font-weight:700;font-size:12px">'+l.date+" "+(l.time||"")+'</div><div style="font-size:10.5px;color:var(--dm)">'+(l.driverName||"—")+" · "+(l.station||"")+'</div></div><div style="text-align:left"><div class="num" style="font-weight:700;font-size:12px">'+fmt(l.liters,1)+' L</div><span class="bg '+l.st+'">'+l.sl+"</span></div></div>";}recent+="</div>";}}
+  if(v&&ST_lastReading){
+    recent='<div class="dc"><div class="dt" style="font-size:13px">آخر قراءة مسجلة لهذه المركبة</div>'+
+      '<div class="rii"><div><div class="num" style="font-weight:700;font-size:12px">'+ST_lastReading.lastDate+" "+(ST_lastReading.lastTime||"")+'</div><div style="font-size:10.5px;color:var(--dm)">'+(ST_lastReading.lastDriverName||"—")+'</div></div>'+
+      '<div class="num" style="font-weight:700;font-size:13px">'+fmt(ST_lastReading.lastCurr,0)+"</div></div></div>";
+  }
   dp.innerHTML='<div class="dc"><div class="dt">تسجيل تعبئة وقود</div>'+
     '<div class="obar"><span style="font-size:12.5px;color:var(--dm)">👤 <b style="color:var(--tx)">'+ST_opName+'</b></span>'+
     '<button style="font-size:11px;padding:5px 9px;border-radius:6px;background:var(--p2);border:1px solid var(--brd);color:var(--dm);cursor:pointer" onclick="goChOp()">تغيير</button></div>'+
@@ -570,7 +616,13 @@ function rDE(logs){
       if(!matches.length){rb.innerHTML='<div class="vr">لا نتائج</div>';rb.style.display="block";return;}
       var h="";for(var i=0;i<matches.length;i++){h+='<div class="vr" data-pvp="'+matches[i].p+'"><b>'+matches[i].p+'</b><span>'+matches[i].u+" · "+(matches[i].m||"")+"</span></div>";}
       rb.innerHTML=h;rb.style.display="block";
-      rb.querySelectorAll("[data-pvp]").forEach(function(el){el.addEventListener("click",function(){ST_selV=FP[this.dataset.pvp];rb.style.display="none";render();});});
+      rb.querySelectorAll("[data-pvp]").forEach(function(el){el.addEventListener("click",function(){
+        var picked=FP[this.dataset.pvp];
+        ST_selV=picked;ST_lastReading=null;rb.style.display="none";render();
+        if(fsDB){fsDB.collection("vehicles").doc(picked.p).get().then(function(doc){
+          if(ST_selV===picked){ST_lastReading=doc.exists?doc.data():null;render();}
+        });}
+      });});
     };
     psi.addEventListener("focus",function(){if(this.value.trim())this.dispatchEvent(new Event("input"));});
   }
@@ -587,10 +639,11 @@ function rDE(logs){
     if(isNaN(prev)||isNaN(curr)||isNaN(liters)||liters<=0||curr<=prev){toast("تأكد من صحة القراءات (الحالية أكبر من السابقة)","⚠️");return;}
     sb.disabled=true;sb.textContent="جارٍ الحفظ...";
     var c=calcE(ST_selV.p,prev,curr,liters);
-    var entry={id:uid(),plate:ST_selV.p,date:new Date().toISOString().slice(0,10),time:new Date().toTimeString().slice(0,5),prev:prev,curr:curr,liters:liters,station:station,notes:notes,driverName:ST_drvName,ar:c.ar,dev:c.dev,st:c.st,sl:c.sl,ref:c.ref,un:c.un,reviewed:false};
+    var entry={plate:ST_selV.p,date:new Date().toISOString().slice(0,10),time:new Date().toTimeString().slice(0,5),prev:prev,curr:curr,liters:liters,station:station,notes:notes,driverName:ST_drvName,ar:c.ar,dev:c.dev,st:c.st,sl:c.sl,ref:c.ref,un:c.un,reviewed:false};
     saveLog(entry,function(ok){
       if(!ok){toast("تعذّر الحفظ","❌");sb.disabled=false;sb.textContent="✅ تسجيل العملية";return;}
       toast("تم التسجيل بنجاح","✅");
+      ST_lastReading={lastCurr:curr,lastDate:entry.date,lastTime:entry.time,lastDriverName:entry.driverName};
       var ra=document.getElementById("rA");
       if(ra){var mp2={green:{ic:"🟢",t:"استهلاك طبيعي",d:"قريب من المعدل المرجعي. ممتاز!"},yellow:{ic:"🟡",t:"انحراف بسيط",d:"ضمن النطاق المقبول."},orange:{ic:"🟠",t:"يحتاج مراجعة",d:"سيراجعه المشرف."},red:{ic:"🔴",t:"إهدار أو خطأ",d:"تأكد من الأرقام."},gray:{ic:"ℹ️",t:"تم التسجيل",d:"لا يوجد معدل مرجعي."}};var mx=mp2[c.st]||mp2.gray;ra.innerHTML='<div class="rtoast '+(c.st==="gray"?"green":c.st)+'"><div style="font-size:22px">'+mx.ic+'</div><div><div class="rtoast-t">'+mx.t+'</div><div class="rtoast-d">'+mx.d+(c.ar?" · معدلك: "+fmt(c.ar,2)+" مقابل "+fmt(c.ref,2):"")+"</div></div></div>";}
       var iCr=document.getElementById("iCr"),iL=document.getElementById("iL"),iNo=document.getElementById("iNo");
