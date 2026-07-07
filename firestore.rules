@@ -19,13 +19,14 @@ service cloud.firestore {
     match /admins/{uid} {
       allow read: if isSignedIn();
       allow create: if isOwner()
-        && request.resource.data.keys().hasOnly(['name','email','isOwner','createdAt'])
+        && request.resource.data.keys().hasOnly(['name','email','isOwner','createdAt','pages'])
         && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() < 100
         && request.resource.data.email is string
         && request.resource.data.isOwner is bool
         && request.resource.data.createdAt == request.time;
       allow update: if isOwner()
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name','isOwner']);
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name','isOwner','pages'])
+        && (!('pages' in request.resource.data) || (request.resource.data.pages is list && request.resource.data.pages.size() < 20));
       allow delete: if isOwner() && request.auth.uid != uid;
     }
 
