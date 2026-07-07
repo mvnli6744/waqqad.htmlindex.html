@@ -67,5 +67,14 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow write: if isOwner();
     }
+
+    // Owner-managed driver roster (names drivers pick from at sign-in).
+    match /drivers/current {
+      allow read: if isSignedIn();
+      allow write: if isOwner()
+        && request.resource.data.keys().hasOnly(['list'])
+        && request.resource.data.list is list
+        && request.resource.data.list.size() < 2000;
+    }
   }
 }
