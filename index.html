@@ -127,7 +127,7 @@ var SAR=2.18;
 var AF=[].concat(FD), FP={};
 var fbDB=null, fbReady=false, fsDB=null;
 var CUR_USER=null;
-var LOGS_CACHE=[], ADMINS_CACHE=[], OV_CACHE={a:[],d:[]};
+var LOGS_CACHE=[], ADMINS_CACHE=[], OV_CACHE={a:[],d:[]}, DRIVERS_CACHE=[];
 
 function ri(){FP={};for(var i=0;i<AF.length;i++)FP[AF[i].p]=AF[i];}
 ri();
@@ -163,6 +163,10 @@ function initFB(){
         applyOv(OV_CACHE);
         if(document.getElementById("MP"))renderPage();
       },function(){/* not signed in yet — will refire once auth resolves */});
+      fsDB.collection("drivers").doc("current").onSnapshot(function(doc){
+        DRIVERS_CACHE=doc.exists?(doc.data().list||[]):[];
+        if(document.getElementById("MP"))renderPage();
+      },function(){});
       firebase.auth(app).onAuthStateChanged(onAuthChanged);
     }catch(e){console.error("Firebase init failed:",e);fbReady=false;render();}
   });
@@ -360,7 +364,7 @@ function tb(){
 /* ── Admin shell ── */
 var ON=[["dash","لوحة المالك","📊"],["act","النشاط الحي","📡"],["drv","السائقون","🏆"],
         ["alrt","التنبيهات","🚨"],["log","سجل التعبئة","📝"],["flt","الأسطول","🚛"],
-        ["fmg","إدارة الأسطول","🚗"],["usr","المستخدمون","🔑"],["roi","الجدوى","💡"]];
+        ["fmg","إدارة الأسطول","🚗"],["drvm","إدارة السائقين","👤"],["usr","المستخدمون","🔑"],["roi","الجدوى","💡"]];
 var AN=[["dash","لوحة التحكم","📊"],["alrt","التنبيهات","🚨"],["log","سجل التعبئة","📝"],
         ["flt","الأسطول","🚛"],["roi","الجدوى","💡"]];
 function navH(nav,cls){return nav.map(function(n){return '<button class="'+cls+(ST_page===n[0]?" on":"")+" npg"+'" data-pg="'+n[0]+'">'+n[2]+" "+n[1]+"</button>";}).join("");}
@@ -388,6 +392,7 @@ function renderPage(){
   else if(ST_page==="log"){mp.innerHTML=pLog();rLR();}
   else if(ST_page==="flt"){mp.innerHTML=pFlt();rFR();}
   else if(ST_page==="fmg"){mp.innerHTML=pFmg();rFmR();}
+  else if(ST_page==="drvm"){mp.innerHTML=pDrvM();bndDrvM();}
   else if(ST_page==="roi")mp.innerHTML=pROI(logs);
 }
 function agg(logs){
@@ -455,11 +460,59 @@ function pFmg(){
   return r;
 }
 function rFmR(){var ov=loadOv();var added=new Set((ov.a||[]).map(function(v){return v.p;}));var s=(document.getElementById("fmS")||{value:""}).value.trim();var rows=AF.filter(function(v){return !s||v.p.includes(s)||v.u.includes(s);});var tb=document.getElementById("fmTb");if(!tb)return;var h="";for(var i=0;i<Math.min(rows.length,300);i++){var v=rows[i];h+="<tr><td class='num'>"+v.p+"</td><td>"+v.u+"</td><td>"+(v.m||"—")+"</td><td>"+(v.l||"—")+"</td><td><span class='bg "+(added.has(v.p)?"green":"gray")+"'>"+(added.has(v.p)?"مضافة":"أصلية")+"</span></td><td><button class='btn btnd' style='font-size:10px;padding:4px 8px' data-dp='"+v.p+"'>حذف</button></td></tr>";}tb.innerHTML=h;document.querySelectorAll("[data-dp]").forEach(function(btn){btn.addEventListener("click",function(){var pl=this.dataset.dp;if(!confirm("حذف "+pl+"؟"))return;var ov2=loadOv();if(ov2.d.indexOf(pl)<0)ov2.d.push(pl);ov2.a=(ov2.a||[]).filter(function(v){return v.p!==pl;});saveOv(ov2);toast("حُذفت "+pl,"🗑️");renderPage();});});var fa=document.getElementById("btnFA");if(fa)fa.onclick=function(){var pl=(document.getElementById("fP")||{value:""}).value.trim();var us=(document.getElementById("fU")||{value:""}).value;var mk=(document.getElementById("fM")||{value:""}).value.trim();var lc=(document.getElementById("fL")||{value:""}).value.trim();var err=document.getElementById("fErr");err.textContent="";if(!pl){err.textContent="رقم اللوحة مطلوب";return;}if(!us){err.textContent="نوع الاستخدام مطلوب";return;}for(var i=0;i<AF.length;i++){if(AF[i].p===pl){err.textContent="هذه اللوحة موجودة مسبقاً";return;}}var nv={p:pl,u:us,m:mk,mo:"",l:lc};var ov2=loadOv();ov2.a=(ov2.a||[]);ov2.a.push(nv);ov2.d=(ov2.d||[]).filter(function(p){return p!==pl;});saveOv(ov2);toast("أُضيفت "+pl,"🚗");renderPage();};var fmsi=document.getElementById("fmS");if(fmsi)fmsi.oninput=rFmR;}
-function pUsr(admins){if(!ST_admin||!ST_admin.isOwner)return '<div class="card">'+es("🔒","للمالك فقط","")+"</div>";var r='<div class="ph"><h1>إدارة المستخدمين</h1></div><div class="card"><div class="ch"><h2>إضافة مشرف جديد</h2></div><div class="fr"><div class="fl"><label>الاسم</label><input type="text" id="uN"></div><div class="fl"><label>البريد الإلكتروني</label><input type="email" id="uEm"></div></div><div class="fl"><label>كلمة المرور</label><input type="password" id="uP" placeholder="6 أحرف على الأقل"></div><div id="uErr" style="color:var(--rd);font-size:12px;margin-bottom:9px"></div><button class="btn btnp" id="btnUA">➕ إضافة المشرف</button></div><div class="card"><div class="ch"><h2>المستخدمون ('+admins.length+')</h2></div><div class="tw"><table><thead><tr><th>الاسم</th><th>البريد</th><th>الصلاحية</th><th></th></tr></thead><tbody>';for(var i=0;i<admins.length;i++){var u=admins[i];r+="<tr><td><b>"+u.n+"</b></td><td>"+(u.email||"—")+"</td><td><span class='bg "+(u.isOwner?"ow2":"blue")+"'>"+(u.isOwner?"مالك":"مشرف")+"</span></td><td>"+(u.isOwner?"":'<button class="btn btnd" style="font-size:10px;padding:4px 8px" data-rmid="'+u.id+'">إزالة</button>')+"</td></tr>";}return r+"</tbody></table></div></div>";}
+function pDrvM(){
+  if(!ST_admin||!ST_admin.isOwner)return '<div class="card">'+es("🔒","للمالك فقط","")+"</div>";
+  var r='<div class="ph"><h1>👤 إدارة السائقين</h1><p>السائقون يختارون اسمهم من هذه القائمة عند الدخول.</p></div>'+
+    '<div class="card"><div class="ch"><h2>إضافة سائق جديد</h2></div><div class="fl"><label>الاسم</label><input type="text" id="dvN" placeholder="مثال: خالد العتيبي"></div><div id="dvErr" style="color:var(--rd);font-size:12px;margin-bottom:9px"></div><button class="btn btnp" id="btnDvA">➕ إضافة سائق</button></div>';
+  r+='<div class="card"><div class="ch"><h2>السائقون ('+DRIVERS_CACHE.length+')</h2></div>';
+  if(!DRIVERS_CACHE.length)r+=es("👥","لا يوجد سائقون مسجّلون بعد","السائقون يقدرون يكتبون اسمهم يدوياً لحد ما تضيفهم هنا");
+  else{
+    r+='<div class="tw"><table><thead><tr><th>الاسم</th><th></th></tr></thead><tbody>';
+    for(var i=0;i<DRIVERS_CACHE.length;i++){var n=DRIVERS_CACHE[i];
+      r+="<tr><td><b>"+n+"</b></td><td style='display:flex;gap:6px'><button class='btn btng' style='font-size:10px;padding:4px 8px' data-dvedit='"+i+"'>✏️ تعديل</button><button class='btn btnd' style='font-size:10px;padding:4px 8px' data-dvdel='"+i+"'>حذف</button></td></tr>";
+    }
+    r+="</tbody></table>";
+  }
+  r+="</div>";return r;
+}
+function bndDrvM(){
+  var add=document.getElementById("btnDvA");
+  if(add)add.onclick=function(){
+    var n=(document.getElementById("dvN")||{value:""}).value.trim();
+    var err=document.getElementById("dvErr");err.textContent="";
+    if(!n){err.textContent="الرجاء إدخال الاسم";return;}
+    if(DRIVERS_CACHE.indexOf(n)>=0){err.textContent="هذا الاسم مسجّل مسبقاً";return;}
+    var list=DRIVERS_CACHE.concat([n]);
+    fsDB.collection("drivers").doc("current").set({list:list}).then(function(){toast("أُضيف "+n,"✅");navTo("drvm");}).catch(function(){err.textContent="تعذّر الحفظ";});
+  };
+  document.querySelectorAll("[data-dvdel]").forEach(function(btn){btn.addEventListener("click",function(){
+    var i=parseInt(this.dataset.dvdel,10);
+    if(!confirm("حذف "+DRIVERS_CACHE[i]+"؟"))return;
+    var list=DRIVERS_CACHE.slice();list.splice(i,1);
+    fsDB.collection("drivers").doc("current").set({list:list}).then(function(){toast("تم الحذف","🗑️");navTo("drvm");});
+  });});
+  document.querySelectorAll("[data-dvedit]").forEach(function(btn){btn.addEventListener("click",function(){
+    var i=parseInt(this.dataset.dvedit,10);
+    var nn=prompt("الاسم الجديد:",DRIVERS_CACHE[i]);
+    if(nn===null)return;nn=nn.trim();if(!nn)return;
+    var list=DRIVERS_CACHE.slice();list[i]=nn;
+    fsDB.collection("drivers").doc("current").set({list:list}).then(function(){toast("تم التحديث","✅");navTo("drvm");});
+  });});
+}
+function pUsr(admins){if(!ST_admin||!ST_admin.isOwner)return '<div class="card">'+es("🔒","للمالك فقط","")+"</div>";var r='<div class="ph"><h1>إدارة المستخدمين</h1></div><div class="card"><div class="ch"><h2>إضافة مشرف جديد</h2></div><div class="fr"><div class="fl"><label>الاسم</label><input type="text" id="uN"></div><div class="fl"><label>البريد الإلكتروني</label><input type="email" id="uEm"></div></div><div class="fl"><label>كلمة المرور</label><input type="password" id="uP" placeholder="6 أحرف على الأقل"></div><div id="uErr" style="color:var(--rd);font-size:12px;margin-bottom:9px"></div><button class="btn btnp" id="btnUA">➕ إضافة المشرف</button></div><div class="card"><div class="ch"><h2>المستخدمون ('+admins.length+')</h2></div><div class="tw"><table><thead><tr><th>الاسم</th><th>البريد</th><th>الصلاحية</th><th></th></tr></thead><tbody>';for(var i=0;i<admins.length;i++){var u=admins[i];r+="<tr><td><b>"+u.n+"</b></td><td>"+(u.email||"—")+"</td><td><span class='bg "+(u.isOwner?"ow2":"blue")+"'>"+(u.isOwner?"مالك":"مشرف")+"</span></td><td style='display:flex;gap:6px'><button class=\"btn btng\" style=\"font-size:10px;padding:4px 8px\" data-edid=\""+u.id+"\" data-edname=\""+u.n.replace(/"/g,"&quot;")+"\">✏️ تعديل</button>"+(u.isOwner?"":'<button class="btn btnd" style="font-size:10px;padding:4px 8px" data-rmid="'+u.id+'">إزالة</button>')+"</td></tr>";}return r+"</tbody></table></div></div>";}
 function bndUsr(){
   document.querySelectorAll("[data-rmid]").forEach(function(btn){btn.addEventListener("click",function(){
     var id=this.dataset.rmid;
     fsDB.collection("admins").doc(id).delete().then(function(){toast("تمت الإزالة","✅");navTo("usr");}).catch(function(){toast("تعذّر الحذف","❌");});
+  });});
+  document.querySelectorAll("[data-edid]").forEach(function(btn){btn.addEventListener("click",function(){
+    var id=this.dataset.edid,cur=this.dataset.edname;
+    var nn=prompt("الاسم الجديد:",cur);
+    if(nn===null)return;nn=nn.trim();if(!nn)return;
+    fsDB.collection("admins").doc(id).update({name:nn}).then(function(){
+      if(ST_admin&&ST_admin.id===id)ST_admin.n=nn;
+      toast("تم تحديث الاسم","✅");navTo("usr");
+    }).catch(function(){toast("تعذّر التحديث","❌");});
   });});
   var ua=document.getElementById("btnUA");
   if(ua)ua.onclick=function(){
@@ -491,10 +544,32 @@ function rDriver(){
 }
 function rOpG(){
   var p=document.getElementById("DP");if(!p)return;
-  p.innerHTML='<div class="dc"><div class="dt">من أنت؟</div><div class="ds">اسمك يُسجَّل مع كل عملية.</div><div class="fl"><label>الاسم <span style="color:var(--rd)">*</span></label><input type="text" id="opI" placeholder="مثال: خالد العتيبي" autofocus></div><div style="color:var(--rd);font-size:12px;margin-bottom:9px" id="opE"></div><button class="sb" id="btnOG">متابعة →</button></div>';
-  function go(){var v=(document.getElementById("opI").value||"").trim();if(!v){document.getElementById("opE").textContent="الرجاء إدخال الاسم";return;}ST_opName=v;ST_drvName=v;setOp(v);render();}
-  document.getElementById("btnOG").onclick=go;
-  document.getElementById("opI").addEventListener("keydown",function(e){if(e.key==="Enter")go();});
+  var hasDrivers=DRIVERS_CACHE.length>0;
+  p.innerHTML='<div class="dc"><div class="dt">من أنت؟</div><div class="ds">'+(hasDrivers?"اختر اسمك من القائمة.":"اسمك يُسجَّل مع كل عملية.")+'</div>'+
+    '<div class="fl vp"><label>الاسم <span style="color:var(--rd)">*</span></label><input type="text" id="opI" placeholder="'+(hasDrivers?"اكتب للبحث عن اسمك...":"مثال: خالد العتيبي")+'" autocomplete="off" autofocus>'+
+    (hasDrivers?'<div class="vrs" id="opR"></div>':"")+
+    '</div><div style="color:var(--rd);font-size:12px;margin-bottom:9px" id="opE"></div><button class="sb" id="btnOG">متابعة →</button></div>';
+  function go(v){
+    v=(v!=null?v:(document.getElementById("opI").value||"")).trim();
+    if(!v){document.getElementById("opE").textContent="الرجاء إدخال الاسم";return;}
+    ST_opName=v;ST_drvName=v;setOp(v);render();
+  }
+  document.getElementById("btnOG").onclick=function(){go();};
+  var opi=document.getElementById("opI");
+  opi.addEventListener("keydown",function(e){if(e.key==="Enter")go();});
+  if(hasDrivers){
+    opi.oninput=function(){
+      var q=this.value.trim(),rb=document.getElementById("opR");if(!rb)return;
+      if(!q){rb.style.display="none";return;}
+      var matches=DRIVERS_CACHE.filter(function(n){return n.includes(q);}).slice(0,25);
+      if(!matches.length){rb.innerHTML='<div class="vr">لا نتائج — تقدر تكتب اسمك كامل وتضغط متابعة</div>';rb.style.display="block";return;}
+      var h="";for(var i=0;i<matches.length;i++)h+='<div class="vr" data-dn="'+matches[i]+'">'+matches[i]+"</div>";
+      rb.innerHTML=h;rb.style.display="block";
+      rb.querySelectorAll("[data-dn]").forEach(function(el){el.addEventListener("click",function(){rb.style.display="none";go(this.dataset.dn);});});
+    };
+    opi.addEventListener("focus",function(){if(this.value.trim())this.dispatchEvent(new Event("input"));});
+    document.addEventListener("click",function(e){if(!e.target.closest(".vp")){var r=document.getElementById("opR");if(r)r.style.display="none";}},{once:true});
+  }
 }
 
 /* Camera OCR helpers */
