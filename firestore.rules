@@ -1,0 +1,72 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function isAdminOrOwner() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+    function isOwner() {
+      return isAdminOrOwner() &&
+        get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.isOwner == true;
+    }
+
+    // Admin/owner roster, keyed by Firebase Auth uid. Only an existing owner may
+    // add/remove/edit entries here — the first owner is seeded out-of-band
+    // (outside client rules) when the project is provisioned.
+    match /admins/{uid} {
+      allow read: if isSignedIn();
+      allow create: if isOwner()
+        && request.resource.data.keys().hasOnly(['name','email','isOwner','createdAt'])
+        && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() < 100
+        && request.resource.data.email is string
+        && request.resource.data.isOwner is bool
+        && request.resource.data.createdAt == request.time;
+      allow update: if isOwner()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name','isOwner']);
+      allow delete: if isOwner() && request.auth.uid != uid;
+    }
+
+    // Fuel log entries. Drivers are anonymous-auth clients: they may append a
+    // well-formed entry but can NEVER list/query the collection (that would leak
+    // company-wide fuel/deviation data to every driver, and pull the whole fleet
+    // history over their mobile connection). Only admin/owner can list + review.
+    match /logs/{id} {
+      allow get: if isSignedIn();
+      allow list: if isAdminOrOwner();
+      allow create: if isSignedIn()
+        && request.resource.data.keys().hasOnly(['plate','date','time','prev','curr','liters','station','notes','driverName','ar','dev','st','sl','ref','un','reviewed','createdAt'])
+        && request.resource.data.plate is string && request.resource.data.plate.size() > 0 && request.resource.data.plate.size() < 40
+        && request.resource.data.driverName is string && request.resource.data.driverName.size() > 0 && request.resource.data.driverName.size() < 100
+        && request.resource.data.prev is number && request.resource.data.curr is number
+        && request.resource.data.curr > request.resource.data.prev
+        && request.resource.data.liters is number && request.resource.data.liters > 0 && request.resource.data.liters < 2000
+        && request.resource.data.reviewed == false
+        && request.resource.data.createdAt == request.time;
+      allow update: if isAdminOrOwner()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reviewed']);
+      allow delete: if isOwner();
+    }
+
+    // Denormalized "latest reading" per vehicle — lets drivers see/prefill the
+    // previous odometer/hour reading without needing any access to full log history.
+    match /vehicles/{plate} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn()
+        && request.resource.data.keys().hasOnly(['lastCurr','lastDate','lastTime','lastDriverName'])
+        && request.resource.data.lastCurr is number
+        && request.resource.data.lastDate is string && request.resource.data.lastDate.size() < 20
+        && request.resource.data.lastTime is string && request.resource.data.lastTime.size() < 10
+        && request.resource.data.lastDriverName is string && request.resource.data.lastDriverName.size() < 100;
+    }
+
+    // Fleet directory delta (additions/removals on top of the built-in vehicle list).
+    match /fleetOv/current {
+      allow read: if isSignedIn();
+      allow write: if isOwner();
+    }
+  }
+}
