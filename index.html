@@ -135,12 +135,13 @@ ri();
 /* ── State ── */
 var ST_role=null, ST_page="dash", ST_target=null, ST_admin=null;
 var ST_selV=null, ST_opName="", ST_drvName="", ST_lastReading=null;
+var ST_capturedPhotos={}; /* fieldId -> compressed JPEG Blob, cleared after each submit */
 
 /* ── Firebase init (SDK loads lazily, only when configured — saves data otherwise) ── */
 var logsListenerOn=false, logsUnsub=null;
 function loadFirebaseScripts(cb){
   if(window.firebase){cb();return;}
-  var parts=["app","auth","firestore"];
+  var parts=["app","auth","firestore","storage"];
   (function next(i){
     if(i>=parts.length){cb();return;}
     var s=document.createElement("script");
@@ -221,15 +222,31 @@ function ensureLogsListener(){
 function lg(k){try{return localStorage.getItem("wq_"+k);}catch(e){return null;}}
 function ls(k,v){try{localStorage.setItem("wq_"+k,v);return true;}catch(e){return false;}}
 function loadLogs(){return LOGS_CACHE;}
-function saveLog(entry,cb){
+function saveLog(entry,photos,cb){
   if(!fbReady||!fsDB){if(cb)cb(false);return;}
   var ref=fsDB.collection("logs").doc();
-  var data=Object.assign({},entry,{createdAt:firebase.firestore.FieldValue.serverTimestamp()});
   var vRef=fsDB.collection("vehicles").doc(entry.plate);
-  var batch=fsDB.batch();
-  batch.set(ref,data);
-  batch.set(vRef,{lastCurr:entry.curr,lastDate:entry.date,lastTime:entry.time||"",lastDriverName:entry.driverName||""});
-  batch.commit().then(function(){if(cb)cb(true);}).catch(function(e){console.error(e);if(cb)cb(false);});
+  var photoFields={};
+  var uploads=[];
+  /* Photo attachment is best-effort: a Storage hiccup (or Storage not being
+     enabled at all) must never block saving the actual fuel record. */
+  if(photos&&photos.prev)uploads.push(
+    firebase.storage().ref("logPhotos/"+ref.id+"/prev.jpg").put(photos.prev,{contentType:"image/jpeg"})
+      .then(function(snap){return snap.ref.getDownloadURL();}).then(function(url){photoFields.photoPrev=url;})
+      .catch(function(e){console.error("photo upload (prev) failed, saving entry without it:",e);})
+  );
+  if(photos&&photos.curr)uploads.push(
+    firebase.storage().ref("logPhotos/"+ref.id+"/curr.jpg").put(photos.curr,{contentType:"image/jpeg"})
+      .then(function(snap){return snap.ref.getDownloadURL();}).then(function(url){photoFields.photoCurr=url;})
+      .catch(function(e){console.error("photo upload (curr) failed, saving entry without it:",e);})
+  );
+  Promise.all(uploads).then(function(){
+    var data=Object.assign({},entry,photoFields,{createdAt:firebase.firestore.FieldValue.serverTimestamp()});
+    var batch=fsDB.batch();
+    batch.set(ref,data);
+    batch.set(vRef,{lastCurr:entry.curr,lastDate:entry.date,lastTime:entry.time||"",lastDriverName:entry.driverName||""});
+    return batch.commit();
+  }).then(function(){if(cb)cb(true);}).catch(function(e){console.error("saveLog failed:",e);if(cb)cb(false);});
 }
 function patchLog(e){if(fbReady&&fsDB)fsDB.collection("logs").doc(e.id).update({reviewed:e.reviewed});}
 
@@ -460,7 +477,7 @@ function bndAlrt(){document.querySelectorAll("[data-rvid]").forEach(function(btn
 function pLog(){var isOwn=ST_role==="owner";return '<div class="ph"><h1>سجل التعبئة</h1></div><div class="tbar"><input class="ti" id="lS" placeholder="ابحث..."><select class="ts" id="lF"><option value="">كل الحالات</option><option value="green">🟢 طبيعي</option><option value="yellow">🟡 انحراف</option><option value="orange">🟠 مراجعة</option><option value="red">🔴 إهدار</option></select><button class="btn btng" id="btnExp">⬇️ CSV</button>'+(isOwn?'<button class="btn btnp" id="btnMlOpen">➕ إضافة عملية يدوياً</button>':"")+'</div><div class="card" style="padding:0"><div class="tw" style="max-height:450px;overflow-y:auto"><table><thead><tr><th>التاريخ</th><th>الوقت</th><th>اللوحة</th><th>الاستخدام</th><th>السابقة</th><th>الحالية</th><th>اللتر</th><th>الفعلي</th><th>المرجعي</th><th>الانحراف</th><th>الحالة</th><th>السائق</th><th>الموقع</th>'+(isOwn?"<th></th>":"")+'</tr></thead><tbody id="lTb"></tbody></table></div></div>';}
 function rLR(){
   var isOwn=ST_role==="owner";
-  var s=(document.getElementById("lS")||{value:""}).value.trim();var fv=(document.getElementById("lF")||{value:""}).value;var rows=loadLogs();if(s)rows=rows.filter(function(l){return l.plate.includes(s)||(l.driverName||"").includes(s);});if(fv)rows=rows.filter(function(l){return l.st===fv;});var tb=document.getElementById("lTb");if(!tb)return;if(!rows.length){tb.innerHTML="<tr><td colspan='"+(isOwn?14:13)+"' style='text-align:center;padding:20px;color:var(--fn)'>لا نتائج</td></tr>";return;}var h="";for(var i=0;i<rows.length;i++){var l=rows[i];var v=FP[l.plate];h+="<tr><td class='num'>"+l.date+"</td><td class='num'>"+(l.time||"—")+"</td><td class='num'>"+l.plate+"</td><td>"+(v?v.u:"")+"</td><td class='num'>"+fmt(l.prev,0)+"</td><td class='num'>"+fmt(l.curr,0)+"</td><td class='num'>"+fmt(l.liters,1)+"</td><td class='num'>"+fmt(l.ar,2)+"</td><td class='num'>"+fmt(l.ref,2)+"</td><td class='num'>"+(l.dev!=null?(l.dev>=0?"+":"")+pct(l.dev):"—")+"</td><td><span class='bg "+l.st+"'>"+l.sl+"</span></td><td>"+(l.driverName||"—")+"</td><td>"+(l.station||"—")+"</td>"+(isOwn?"<td><button class='btn btnd' style='font-size:10px;padding:4px 8px' data-dellog='"+l.id+"'>حذف</button></td>":"")+"</tr>";}tb.innerHTML=h;
+  var s=(document.getElementById("lS")||{value:""}).value.trim();var fv=(document.getElementById("lF")||{value:""}).value;var rows=loadLogs();if(s)rows=rows.filter(function(l){return l.plate.includes(s)||(l.driverName||"").includes(s);});if(fv)rows=rows.filter(function(l){return l.st===fv;});var tb=document.getElementById("lTb");if(!tb)return;if(!rows.length){tb.innerHTML="<tr><td colspan='"+(isOwn?14:13)+"' style='text-align:center;padding:20px;color:var(--fn)'>لا نتائج</td></tr>";return;}var h="";for(var i=0;i<rows.length;i++){var l=rows[i];var v=FP[l.plate];h+="<tr><td class='num'>"+l.date+"</td><td class='num'>"+(l.time||"—")+"</td><td class='num'>"+l.plate+"</td><td>"+(v?v.u:"")+"</td><td class='num'>"+fmt(l.prev,0)+"</td><td class='num'>"+fmt(l.curr,0)+"</td><td class='num'>"+fmt(l.liters,1)+"</td><td class='num'>"+fmt(l.ar,2)+"</td><td class='num'>"+fmt(l.ref,2)+"</td><td class='num'>"+(l.dev!=null?(l.dev>=0?"+":"")+pct(l.dev):"—")+"</td><td><span class='bg "+l.st+"'>"+l.sl+"</span></td><td>"+(l.driverName||"—")+"</td><td>"+(l.station||"—")+(l.photoPrev||l.photoCurr?' <a href="'+(l.photoCurr||l.photoPrev)+'" target="_blank" rel="noopener" title="عرض صورة العداد">📷</a>':"")+"</td>"+(isOwn?"<td><button class='btn btnd' style='font-size:10px;padding:4px 8px' data-dellog='"+l.id+"'>حذف</button></td>":"")+"</tr>";}tb.innerHTML=h;
   var lsi=document.getElementById("lS"),lfi=document.getElementById("lF"),bex=document.getElementById("btnExp");if(lsi)lsi.oninput=rLR;if(lfi)lfi.onchange=rLR;if(bex)bex.onclick=expCsv;
   var mlo=document.getElementById("btnMlOpen");if(mlo)mlo.onclick=openManualLog;
   document.querySelectorAll("[data-dellog]").forEach(function(btn){btn.addEventListener("click",function(){
@@ -507,7 +524,7 @@ function openManualLog(){
     if(isNaN(prev)||isNaN(curr)||isNaN(liters)||liters<=0||curr<=prev){err.textContent="تأكد من صحة القراءات (الحالية أكبر من السابقة)";return;}
     var c=calcE(selP.p,prev,curr,liters);
     var entry={plate:selP.p,date:date,time:time,prev:prev,curr:curr,liters:liters,station:station,notes:"",driverName:drv,ar:c.ar,dev:c.dev,st:c.st,sl:c.sl,ref:c.ref,un:c.un,reviewed:false};
-    saveLog(entry,function(ok){
+    saveLog(entry,null,function(ok){
       if(!ok){err.textContent="تعذّر الحفظ";return;}
       toast("تمت الإضافة","✅");modal.remove();
     });
@@ -693,6 +710,7 @@ function openCamera(fieldId){
   document.getElementById("btnCamClose").onclick=close;
   document.getElementById("btnCap").onclick=function(){
     var res=document.getElementById("camResult");
+    var ocrCanvas;
     try{
       var vid=document.getElementById("camVid");
       var canvas=document.getElementById("camCanvas");
@@ -702,6 +720,11 @@ function openCamera(fieldId){
       }
       canvas.width=vid.videoWidth;canvas.height=vid.videoHeight;
       canvas.getContext("2d").drawImage(vid,0,0,canvas.width,canvas.height);
+      /* Clone before OCR preprocessing mutates the canvas — the attached photo should stay a normal color image */
+      ocrCanvas=document.createElement("canvas");
+      ocrCanvas.width=canvas.width;ocrCanvas.height=canvas.height;
+      ocrCanvas.getContext("2d").drawImage(canvas,0,0);
+      compressCanvasToBlob(canvas,function(blob){if(blob)ST_capturedPhotos[fieldId]=blob;});
     }catch(e){
       console.error("Camera capture failed:",e);
       res.innerHTML='<span style="color:var(--rd)">❌ تعذّر التقاط الصورة — أدخل الرقم يدوياً</span>';
@@ -715,7 +738,7 @@ function openCamera(fieldId){
       if(skipped)return;
       if(failed){res.innerHTML='<span style="color:var(--rd)">❌ تعذّر تحميل أداة القراءة — تأكد من الاتصال، أو أدخل الرقم يدوياً</span>';return;}
       res.innerHTML="🔍 جارٍ قراءة الأرقام...";
-      extractNumber(document.getElementById("camCanvas"),function(num){
+      extractNumber(ocrCanvas,function(num){
         if(skipped)return;
         if(num){
           res.innerHTML='<b style="color:var(--tl);font-size:18px">'+num+'</b><br><button id="btnAccept" style="margin-top:8px;padding:8px 20px;border-radius:8px;background:var(--tl);color:#06231d;border:none;cursor:pointer;font-weight:700">✅ استخدام هذا الرقم</button>';
@@ -755,15 +778,70 @@ function loadTesseract(cb){
   };
   document.head.appendChild(s);
 }
+/* Binarizes the frame (grayscale + Otsu threshold) — the standard fix for
+   digit-display OCR accuracy, since raw camera frames have uneven lighting
+   that confuses Tesseract far more than the digit shapes themselves do. */
+/* Downscale + JPEG-compress the captured frame before it's ever attached to a
+   log entry — a raw camera frame can be several MB, this keeps it well under
+   200KB while staying clear enough to verify a meter reading. */
+function compressCanvasToBlob(canvas,cb){
+  try{
+    var maxDim=1000;
+    var w=canvas.width,h=canvas.height;
+    var scale=Math.min(1,maxDim/Math.max(w,h));
+    var outW=Math.max(1,Math.round(w*scale)),outH=Math.max(1,Math.round(h*scale));
+    var out=document.createElement("canvas");
+    out.width=outW;out.height=outH;
+    out.getContext("2d").drawImage(canvas,0,0,outW,outH);
+    out.toBlob(function(blob){cb(blob);},"image/jpeg",0.7);
+  }catch(e){console.error("compressCanvasToBlob failed:",e);cb(null);}
+}
+function preprocessForOCR(canvas){
+  var ctx=canvas.getContext("2d");
+  var w=canvas.width,h=canvas.height;
+  var imgData=ctx.getImageData(0,0,w,h);
+  var data=imgData.data;
+  var n=w*h;
+  var gray=new Uint8ClampedArray(n);
+  var hist=new Array(256).fill(0);
+  for(var i=0;i<n;i++){
+    var g=Math.round(0.299*data[i*4]+0.587*data[i*4+1]+0.114*data[i*4+2]);
+    gray[i]=g;hist[g]++;
+  }
+  var sum=0;for(var t=0;t<256;t++)sum+=t*hist[t];
+  var sumB=0,wB=0,wF=0,maxVar=0,threshold=127;
+  for(var t2=0;t2<256;t2++){
+    wB+=hist[t2];if(wB===0)continue;
+    wF=n-wB;if(wF===0)break;
+    sumB+=t2*hist[t2];
+    var mB=sumB/wB,mF=(sum-sumB)/wF;
+    var varBetween=wB*wF*(mB-mF)*(mB-mF);
+    if(varBetween>maxVar){maxVar=varBetween;threshold=t2;}
+  }
+  for(var j=0;j<n;j++){
+    var v=gray[j]>threshold?255:0;
+    data[j*4]=data[j*4+1]=data[j*4+2]=v;
+  }
+  ctx.putImageData(imgData,0,0);
+}
 function extractNumber(canvas,cb){
   var done=false;
   var timer=setTimeout(function(){if(done)return;done=true;cb(null);},25000);
   try{
-    Tesseract.recognize(canvas,"eng",{tessedit_char_whitelist:"0123456789"}).then(function(result){
-      if(done)return;done=true;clearTimeout(timer);
-      var text=(result&&result.data&&result.data.text)||"";
-      var digits=text.replace(/[^0-9]/g,"");
-      cb(digits.length>=1&&digits.length<=8?digits:null);
+    preprocessForOCR(canvas);
+    Tesseract.createWorker("eng").then(function(worker){
+      return worker.setParameters({tessedit_char_whitelist:"0123456789",tessedit_pageseg_mode:"7"})
+        .then(function(){return worker.recognize(canvas);})
+        .then(function(result){
+          worker.terminate();
+          if(done)return;done=true;clearTimeout(timer);
+          var text=(result&&result.data&&result.data.text)||"";
+          var digits=text.replace(/[^0-9]/g,"");
+          cb(digits.length>=1&&digits.length<=8?digits:null);
+        }).catch(function(e){
+          worker.terminate();
+          throw e;
+        });
     }).catch(function(e){
       if(done)return;done=true;clearTimeout(timer);
       console.error("OCR recognize failed:",e);
@@ -842,10 +920,12 @@ function rDE(){
     sb.disabled=true;sb.textContent="جارٍ الحفظ...";
     var c=calcE(ST_selV.p,prev,curr,liters);
     var entry={plate:ST_selV.p,date:new Date().toISOString().slice(0,10),time:new Date().toTimeString().slice(0,5),prev:prev,curr:curr,liters:liters,station:station,notes:notes,driverName:ST_drvName,ar:c.ar,dev:c.dev,st:c.st,sl:c.sl,ref:c.ref,un:c.un,reviewed:false};
-    saveLog(entry,function(ok){
+    var photos={prev:ST_capturedPhotos.iPr||null,curr:ST_capturedPhotos.iCr||null};
+    saveLog(entry,photos,function(ok){
       if(!ok){toast("تعذّر الحفظ","❌");sb.disabled=false;sb.textContent="✅ تسجيل العملية";return;}
       toast("تم التسجيل بنجاح","✅");
       ST_lastReading={lastCurr:curr,lastDate:entry.date,lastTime:entry.time,lastDriverName:entry.driverName};
+      ST_capturedPhotos={};
       var ra=document.getElementById("rA");
       if(ra){var mp2={green:{ic:"🟢",t:"استهلاك طبيعي",d:"قريب من المعدل المرجعي. ممتاز!"},yellow:{ic:"🟡",t:"انحراف بسيط",d:"ضمن النطاق المقبول."},orange:{ic:"🟠",t:"يحتاج مراجعة",d:"سيراجعه المشرف."},red:{ic:"🔴",t:"إهدار أو خطأ",d:"تأكد من الأرقام."},gray:{ic:"ℹ️",t:"تم التسجيل",d:"لا يوجد معدل مرجعي."}};var mx=mp2[c.st]||mp2.gray;ra.innerHTML='<div class="rtoast '+(c.st==="gray"?"green":c.st)+'"><div style="font-size:22px">'+mx.ic+'</div><div><div class="rtoast-t">'+mx.t+'</div><div class="rtoast-d">'+mx.d+(c.ar?" · معدلك: "+fmt(c.ar,2)+" مقابل "+fmt(c.ref,2):"")+"</div></div></div>";}
       var iCr=document.getElementById("iCr"),iL=document.getElementById("iL"),iNo=document.getElementById("iNo");
