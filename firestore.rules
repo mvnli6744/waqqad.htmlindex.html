@@ -38,7 +38,7 @@ service cloud.firestore {
       allow get: if isSignedIn();
       allow list: if isAdminOrOwner();
       allow create: if isSignedIn()
-        && request.resource.data.keys().hasOnly(['plate','date','time','prev','curr','liters','station','notes','driverName','ar','dev','st','sl','ref','un','reviewed','createdAt'])
+        && request.resource.data.keys().hasOnly(['plate','date','time','prev','curr','liters','station','notes','driverName','ar','dev','st','sl','ref','un','reviewed','createdAt','photoPrev','photoCurr'])
         && request.resource.data.plate is string && request.resource.data.plate.size() > 0 && request.resource.data.plate.size() < 40
         && request.resource.data.driverName is string && request.resource.data.driverName.size() > 0 && request.resource.data.driverName.size() < 100
         && request.resource.data.prev is number && request.resource.data.curr is number

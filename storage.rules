@@ -1,0 +1,16 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Meter-reading photos attached to fuel log entries. Any signed-in client
+    // (driver or admin) may upload one, sized/typed to match what the app's
+    // client-side compression already produces. Only admin/owner can read them
+    // back — these are an audit trail, not something drivers need to browse.
+    match /logPhotos/{logId}/{fileName} {
+      allow read: if request.auth != null &&
+        firestore.exists(/databases/(default)/documents/admins/$(request.auth.uid));
+      allow write: if request.auth != null &&
+        request.resource.size < 2 * 1024 * 1024 &&
+        request.resource.contentType.matches('image/.*');
+    }
+  }
+}
