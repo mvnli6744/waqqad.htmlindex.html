@@ -123,7 +123,6 @@ var FIREBASE_CONFIG = {
 };
 
 var CO="شركة الأساس العريض للمقاولات";
-var MC_HASH="hukmnkt";
 var SAR=2.18;
 var AF=[].concat(FD), FP={};
 var fbDB=null, fbReady=false, fsDB=null;
@@ -134,7 +133,7 @@ function ri(){FP={};for(var i=0;i<AF.length;i++)FP[AF[i].p]=AF[i];}
 ri();
 
 /* ── State ── */
-var ST_role=null, ST_page="dash", ST_target=null, ST_admin=null, ST_authMode="signin";
+var ST_role=null, ST_page="dash", ST_target=null, ST_admin=null;
 var ST_selV=null, ST_opName="", ST_drvName="", ST_lastReading=null;
 
 /* ── Firebase init (SDK loads lazily, only when configured — saves data otherwise) ── */
@@ -229,7 +228,6 @@ function saveOv(o){if(fbReady&&fsDB)fsDB.collection("fleetOv").doc("current").se
 function applyOv(o){var d=new Set(o.d||[]);AF=FD.filter(function(v){return !d.has(v.p);}).concat(o.a||[]);ri();}
 
 /* ── Utils ── */
-function hp(pw){var h=0,s="wq_"+pw;for(var i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))|0;return "h"+Math.abs(h).toString(36);}
 function authErr(e){
   var m={
     "auth/invalid-email":"البريد الإلكتروني غير صالح",
@@ -254,8 +252,8 @@ function calcE(plate,prev,curr,liters){
   return {diff:diff,ar:ar,dev:dev,st:st,sl:sl,ref:ref?ref.t:null,un:ref?ref.u:null};
 }
 /* ── Action helpers (no string args for onclick safety) ── */
-function goOwner(){ST_target="owner";ST_role="auth";ST_authMode="signin";render();}
-function goAdmin(){ST_target="admin";ST_role="auth";ST_authMode="signin";render();}
+function goOwner(){ST_target="owner";ST_role="auth";render();}
+function goAdmin(){ST_target="admin";ST_role="auth";render();}
 function goDriver(){
   if(!fbReady){toast("تعذّر الاتصال — تأكد من الإنترنت","⚠️");return;}
   if(CUR_USER&&CUR_USER.isAnonymous){
@@ -304,60 +302,44 @@ function rGate(){
 /* ── Auth (Firebase email/password) ── */
 function rAuth(){
   var el=document.getElementById("A"),isOw=ST_target==="owner";
-  var signup=isOw&&ST_authMode==="signup";
   el.innerHTML='<div class="gate"><div class="gc"><div class="ac">'+
-    '<div class="at">'+(signup?"إعداد حساب المالك":isOw?"دخول المالك":"دخول المشرف")+'</div>'+
-    '<div class="as">'+(signup?"أول دخول — أنشئ حساب المالك.":"أدخل بريدك الإلكتروني وكلمة المرور.")+'</div>'+
-    (signup?'<div class="fl"><label>الاسم</label><input type="text" id="iN" placeholder="مثال: منصور الدوسري"></div>':"")+
+    '<div class="at">'+(isOw?"دخول المالك":"دخول المشرف")+'</div>'+
+    '<div class="as">أدخل بريدك الإلكتروني وكلمة المرور.</div>'+
     '<div class="fl"><label>البريد الإلكتروني</label><input type="email" id="iEm" placeholder="name@example.com" autocomplete="username"></div>'+
-    '<div class="fl"><label>كلمة المرور</label><input type="password" id="iP" autocomplete="'+(signup?"new-password":"current-password")+'"></div>'+
-    (signup?'<div class="fl"><label>تأكيد كلمة المرور</label><input type="password" id="iP2"></div>'+
-    '<div class="cw"><label>🔑 كود الإعداد السري</label><input type="password" id="iC" placeholder="أدخل الكود السري"></div>':"")+
+    '<div class="fl"><label>كلمة المرور</label><input type="password" id="iP" autocomplete="current-password"></div>'+
     '<div class="ae" id="iE"></div>'+
-    '<button class="sb" id="btnGo">'+(signup?"إنشاء الحساب والدخول":"دخول →")+'</button>'+
-    (isOw?'<button style="background:none;border:none;color:var(--dm);font-size:11.5px;cursor:pointer;margin-top:9px;width:100%" id="btnToggle">'+(signup?"عندك حساب؟ دخول":"أول مرة؟ إعداد حساب المالك")+'</button>':"")+
+    '<button class="sb" id="btnGo">دخول →</button>'+
+    '<button style="background:none;border:none;color:var(--dm);font-size:11.5px;cursor:pointer;margin-top:9px;width:100%" id="btnForgot">نسيت كلمة المرور؟</button>'+
     '<button class="bk" onclick="goBack()">رجوع</button>'+
     '</div></div></div>';
-  var toggleBtn=document.getElementById("btnToggle");
-  if(toggleBtn)toggleBtn.onclick=function(){ST_authMode=signup?"signin":"signup";render();};
   function go(){
     var errEl=document.getElementById("iE");errEl.textContent="";
     var email=(document.getElementById("iEm").value||"").trim();
     var pass=document.getElementById("iP").value||"";
     if(!email){errEl.textContent="❌ الرجاء إدخال البريد الإلكتروني";return;}
-    if(pass.length<6){errEl.textContent="❌ كلمة المرور 6 أحرف على الأقل";return;}
+    if(!pass){errEl.textContent="❌ الرجاء إدخال كلمة المرور";return;}
     var btn=document.getElementById("btnGo");btn.disabled=true;
-    if(signup){
-      var name=(document.getElementById("iN").value||"").trim();
-      var p2=document.getElementById("iP2").value||"";
-      var code=(document.getElementById("iC").value||"").trim();
-      if(!name){errEl.textContent="❌ الرجاء إدخال الاسم";btn.disabled=false;return;}
-      if(pass!==p2){errEl.textContent="❌ كلمتا المرور غير متطابقتين";btn.disabled=false;return;}
-      if(hp(code)!==MC_HASH){errEl.textContent="❌ كود الإعداد غير صحيح";btn.disabled=false;return;}
-      firebase.auth().createUserWithEmailAndPassword(email,pass).then(function(cred){
-        return fsDB.collection("admins").doc(cred.user.uid).set({
-          name:name,email:email,isOwner:true,createdAt:firebase.firestore.FieldValue.serverTimestamp()
-        }).then(function(){
-          ST_admin={id:cred.user.uid,n:name,email:email,isOwner:true};
-          ST_role="owner";ST_page="dash";
-          toast("تم إنشاء حساب المالك ✨","");render();
-        });
-      }).catch(function(e){errEl.textContent="❌ "+authErr(e);btn.disabled=false;});
-    } else {
-      firebase.auth().signInWithEmailAndPassword(email,pass).then(function(cred){
-        return fsDB.collection("admins").doc(cred.user.uid).get().then(function(doc){
-          if(!doc.exists){errEl.textContent="❌ هذا الحساب غير مسجل كمشرف";firebase.auth().signOut();btn.disabled=false;return;}
-          var d=doc.data();
-          if(isOw&&!d.isOwner){errEl.textContent="❌ هذا الحساب ليس بصلاحية المالك";firebase.auth().signOut();btn.disabled=false;return;}
-          ST_admin={id:cred.user.uid,n:d.name,email:d.email,isOwner:!!d.isOwner};
-          ST_role=ST_admin.isOwner?"owner":"admin";ST_page="dash";
-          toast("أهلاً "+d.name,"✅");render();
-        });
-      }).catch(function(e){errEl.textContent="❌ "+authErr(e);btn.disabled=false;});
-    }
+    firebase.auth().signInWithEmailAndPassword(email,pass).then(function(cred){
+      return fsDB.collection("admins").doc(cred.user.uid).get().then(function(doc){
+        if(!doc.exists){errEl.textContent="❌ هذا الحساب غير مسجل كمشرف";firebase.auth().signOut();btn.disabled=false;return;}
+        var d=doc.data();
+        if(isOw&&!d.isOwner){errEl.textContent="❌ هذا الحساب ليس بصلاحية المالك";firebase.auth().signOut();btn.disabled=false;return;}
+        ST_admin={id:cred.user.uid,n:d.name,email:d.email,isOwner:!!d.isOwner};
+        ST_role=ST_admin.isOwner?"owner":"admin";ST_page="dash";
+        toast("أهلاً "+d.name,"✅");render();
+      });
+    }).catch(function(e){errEl.textContent="❌ "+authErr(e);btn.disabled=false;});
   }
   document.getElementById("btnGo").onclick=go;
   document.getElementById("iP").addEventListener("keydown",function(e){if(e.key==="Enter")go();});
+  document.getElementById("btnForgot").onclick=function(){
+    var email=(document.getElementById("iEm").value||"").trim();
+    var errEl=document.getElementById("iE");
+    if(!email){errEl.textContent="❌ أدخل بريدك الإلكتروني أولاً";return;}
+    firebase.auth().sendPasswordResetEmail(email).then(function(){
+      toast("أُرسل رابط إعادة التعيين إلى بريدك","📧");
+    }).catch(function(e){errEl.textContent="❌ "+authErr(e);});
+  };
 }
 
 /* ── Topbar ── */

@@ -15,18 +15,10 @@ service cloud.firestore {
     }
 
     // Admin/owner roster, keyed by Firebase Auth uid. Only an existing owner may
-    // add/remove/edit entries here — the first owner is seeded out-of-band
-    // (outside client rules) when the project is provisioned.
+    // add/remove/edit entries here.
     match /admins/{uid} {
       allow read: if isSignedIn();
-      // TEMPORARY bootstrap clause (remove after the first owner signs up):
-      // lets a brand-new *email/password* account create its own owner doc when
-      // no owner exists yet. Anonymous (driver) sessions are explicitly excluded.
-      allow create: if (isOwner()
-          || (isSignedIn()
-              && request.auth.uid == uid
-              && request.auth.token.firebase.sign_in_provider == 'password'
-              && request.resource.data.isOwner == true))
+      allow create: if isOwner()
         && request.resource.data.keys().hasOnly(['name','email','isOwner','createdAt'])
         && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() < 100
         && request.resource.data.email is string
