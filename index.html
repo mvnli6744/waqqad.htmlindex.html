@@ -692,16 +692,31 @@ function openCamera(fieldId){
   function close(){if(stream)stream.getTracks().forEach(function(t){t.stop();});modal.remove();}
   document.getElementById("btnCamClose").onclick=close;
   document.getElementById("btnCap").onclick=function(){
-    var vid=document.getElementById("camVid");
-    var canvas=document.getElementById("camCanvas");
-    canvas.width=vid.videoWidth;canvas.height=vid.videoHeight;
-    canvas.getContext("2d").drawImage(vid,0,0);
     var res=document.getElementById("camResult");
-    res.innerHTML="⏳ جارٍ تحميل أداة القراءة (أول مرة فقط، بعدها تكون محفوظة بجهازك)...";
+    try{
+      var vid=document.getElementById("camVid");
+      var canvas=document.getElementById("camCanvas");
+      if(!vid.videoWidth||!vid.videoHeight){
+        res.innerHTML='<span style="color:var(--og)">⏳ الكاميرا لسا ما جهزت — انتظر ثانية وحاول مرة ثانية</span>';
+        return;
+      }
+      canvas.width=vid.videoWidth;canvas.height=vid.videoHeight;
+      canvas.getContext("2d").drawImage(vid,0,0,canvas.width,canvas.height);
+    }catch(e){
+      console.error("Camera capture failed:",e);
+      res.innerHTML='<span style="color:var(--rd)">❌ تعذّر التقاط الصورة — أدخل الرقم يدوياً</span>';
+      return;
+    }
+    res.innerHTML="⏳ جارٍ تحميل أداة القراءة (أول مرة فقط، بعدها تكون محفوظة بجهازك)... <button id=\"btnSkipOcr\" style=\"display:block;margin:8px auto 0;background:none;border:none;color:var(--dm);text-decoration:underline;cursor:pointer;font-size:12px\">تخطي وإدخال يدوي</button>";
+    var skipped=false;
+    var skipBtn=document.getElementById("btnSkipOcr");
+    if(skipBtn)skipBtn.onclick=function(){skipped=true;res.innerHTML='<span style="color:var(--dm)">أدخل الرقم يدوياً بالحقل، ثم أغلق هذه النافذة.</span>';};
     loadTesseract(function(failed){
+      if(skipped)return;
       if(failed){res.innerHTML='<span style="color:var(--rd)">❌ تعذّر تحميل أداة القراءة — تأكد من الاتصال، أو أدخل الرقم يدوياً</span>';return;}
       res.innerHTML="🔍 جارٍ قراءة الأرقام...";
-      extractNumber(canvas,function(num){
+      extractNumber(document.getElementById("camCanvas"),function(num){
+        if(skipped)return;
         if(num){
           res.innerHTML='<b style="color:var(--tl);font-size:18px">'+num+'</b><br><button id="btnAccept" style="margin-top:8px;padding:8px 20px;border-radius:8px;background:var(--tl);color:#06231d;border:none;cursor:pointer;font-weight:700">✅ استخدام هذا الرقم</button>';
           document.getElementById("btnAccept").onclick=function(){
@@ -722,20 +737,43 @@ function loadTesseract(cb){
   if(window.Tesseract){cb(false);return;}
   if(tesseractLoading){tesseractLoading.push(cb);return;}
   tesseractLoading=[cb];
+  var done=false;
+  var timer=setTimeout(function(){
+    if(done)return;done=true;
+    var cbs=tesseractLoading;tesseractLoading=null;
+    cbs.forEach(function(f){f(true);});
+  },20000);
   var s=document.createElement("script");
   s.src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
-  s.onload=function(){var cbs=tesseractLoading;tesseractLoading=null;cbs.forEach(function(f){f(false);});};
-  s.onerror=function(){var cbs=tesseractLoading;tesseractLoading=null;cbs.forEach(function(f){f(true);});};
+  s.onload=function(){
+    if(done)return;done=true;clearTimeout(timer);
+    var cbs=tesseractLoading;tesseractLoading=null;cbs.forEach(function(f){f(false);});
+  };
+  s.onerror=function(){
+    if(done)return;done=true;clearTimeout(timer);
+    var cbs=tesseractLoading;tesseractLoading=null;cbs.forEach(function(f){f(true);});
+  };
   document.head.appendChild(s);
 }
 function extractNumber(canvas,cb){
+  var done=false;
+  var timer=setTimeout(function(){if(done)return;done=true;cb(null);},25000);
   try{
     Tesseract.recognize(canvas,"eng",{tessedit_char_whitelist:"0123456789"}).then(function(result){
+      if(done)return;done=true;clearTimeout(timer);
       var text=(result&&result.data&&result.data.text)||"";
       var digits=text.replace(/[^0-9]/g,"");
       cb(digits.length>=1&&digits.length<=8?digits:null);
-    }).catch(function(){cb(null);});
-  }catch(e){cb(null);}
+    }).catch(function(e){
+      if(done)return;done=true;clearTimeout(timer);
+      console.error("OCR recognize failed:",e);
+      cb(null);
+    });
+  }catch(e){
+    if(done)return;done=true;clearTimeout(timer);
+    console.error("OCR exception:",e);
+    cb(null);
+  }
 }
 
 function rDE(){
