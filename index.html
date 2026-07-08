@@ -494,13 +494,14 @@ function openManualLog(){
     '<div style="font-weight:800;font-size:14px;margin-bottom:10px">➕ إضافة عملية يدوياً</div>'+
     '<div class="fl vp"><label>رقم اللوحة</label><input type="text" id="mlP" placeholder="اكتب للبحث..." autocomplete="off"><div class="vrs" id="mlR"></div></div>'+
     '<div class="fr"><div class="fl"><label>التاريخ</label><input type="date" id="mlDate" value="'+new Date().toISOString().slice(0,10)+'"></div><div class="fl"><label>الوقت</label><input type="time" id="mlTime" value="'+new Date().toTimeString().slice(0,5)+'"></div></div>'+
-    '<div class="fr"><div class="fl"><label>القراءة السابقة</label><input type="number" id="mlPrev"></div><div class="fl"><label>القراءة الحالية</label><input type="number" id="mlCurr"></div></div>'+
+    '<div class="fr"><div class="fl"><label>القراءة السابقة '+camBtn("mlPrev")+'</label><input type="number" id="mlPrev"></div><div class="fl"><label>القراءة الحالية '+camBtn("mlCurr")+'</label><input type="number" id="mlCurr"></div></div>'+
     '<div class="fr"><div class="fl"><label>الوقود (لتر)</label><input type="number" id="mlL"></div><div class="fl"><label>المحطة</label><input type="text" id="mlSt"></div></div>'+
     '<div class="fl"><label>اسم السائق</label><input type="text" id="mlDrv" placeholder="اسم السائق"></div>'+
     '<div class="ae" id="mlErr"></div>'+
     '<div style="display:flex;gap:8px;margin-top:8px"><button class="btn btnp" id="btnMlSave" style="flex:1">حفظ</button><button class="btn btng" id="btnMlClose" style="flex:1">إلغاء</button></div>'+
     '</div>';
   document.body.appendChild(modal);
+  modal.querySelectorAll(".cam-btn").forEach(function(btn){btn.addEventListener("click",function(){openCamera(this.dataset.field);});});
   var selP=null;
   document.getElementById("btnMlClose").onclick=function(){modal.remove();};
   var psi=document.getElementById("mlP");
