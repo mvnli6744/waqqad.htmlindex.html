@@ -77,5 +77,27 @@ service cloud.firestore {
         && request.resource.data.list is list
         && request.resource.data.list.size() < 2000;
     }
+
+    // Owner-calibrated reference consumption rates (overrides on top of the
+    // built-in table baked into the app).
+    match /refRates/current {
+      allow read: if isSignedIn();
+      allow write: if isOwner()
+        && request.resource.data.keys().hasOnly(['overrides'])
+        && request.resource.data.overrides is map;
+    }
+
+    // Maintenance / fault log, tied to a plate. Any admin/owner can add one;
+    // only the owner can delete.
+    match /maintenance/{id} {
+      allow read: if isAdminOrOwner();
+      allow create: if isAdminOrOwner()
+        && request.resource.data.keys().hasOnly(['plate','type','date','desc','cost','createdAt'])
+        && request.resource.data.plate is string && request.resource.data.plate.size() > 0 && request.resource.data.plate.size() < 40
+        && request.resource.data.type is string && request.resource.data.type.size() < 40
+        && request.resource.data.date is string && request.resource.data.date.size() < 20
+        && request.resource.data.createdAt == request.time;
+      allow delete: if isOwner();
+    }
   }
 }
