@@ -1,0 +1,953 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0d1117">
+<title>وقّاد — نسخة تجريبية</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+<!-- Firebase SDK loads lazily at runtime, only when FIREBASE_CONFIG below is filled in — zero extra bytes are downloaded until sync is actually enabled. -->
+  <!-- To enable cross-device sync:
+    1. Go to console.firebase.google.com
+    2. Create project → Realtime Database → Start in test mode
+    3. Project Settings → Web app → Copy config
+    4. Replace null in FIREBASE_CONFIG below with your config
+    5. Push/re-upload — the Firebase SDK then loads automatically for everyone
+  -->
+<style>*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0d1117;--p1:#161b22;--p2:#21262d;--brd:#30363d;--amb:#e8a33d;--tl:#3fb39a;--rd:#e25c5c;--og:#e08a4d;--tx:#e6edf3;--dm:#8b949e;--fn:#484f58}
+body{font-family:Cairo,-apple-system,Arial,sans-serif;background:var(--bg);color:var(--tx);min-height:100vh;font-size:13px}
+button{font-family:inherit;cursor:pointer;border:none;outline:none}input,select,textarea{font-family:inherit;outline:none}
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:var(--brd);border-radius:4px}
+.tb{display:flex;align-items:center;justify-content:space-between;padding:9px 14px;background:var(--p1);border-bottom:1px solid var(--brd);position:sticky;top:0;z-index:99;gap:8px;flex-wrap:wrap}
+.tbl{display:flex;align-items:center;gap:9px}.logo{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,var(--amb),#b8741e);display:flex;align-items:center;justify-content:center;font-size:15px}
+.bn{font-weight:800;font-size:14px}.bs{font-size:10px;color:var(--fn)}.tbr{display:flex;align-items:center;gap:7px}
+.chip{padding:4px 9px;border-radius:6px;font-size:11px;font-weight:700}
+.ow{background:rgba(232,163,61,.15);color:var(--amb);border:1px solid rgba(232,163,61,.25)}
+.adm{background:rgba(91,155,213,.12);color:#5b9bd5;border:1px solid rgba(91,155,213,.2)}
+.drv{background:rgba(63,179,154,.1);color:var(--tl);border:1px solid rgba(63,179,154,.2)}
+.ob{padding:5px 11px;border-radius:7px;background:var(--p2);border:1px solid var(--brd);color:var(--dm);font-size:11px}.ob:hover{color:var(--tx)}
+.sbar{padding:5px 14px;font-size:11px;display:flex;align-items:center;gap:6px}
+.sbar.ok{background:rgba(63,179,154,.06);color:var(--tl);border-bottom:1px solid rgba(63,179,154,.1)}
+.sbar.local{background:rgba(232,163,61,.05);color:var(--dm);border-bottom:1px solid rgba(232,163,61,.1)}
+.sdot{width:7px;height:7px;border-radius:50%}.sdot.loc{background:var(--og)}
+.lay{display:flex;min-height:calc(100vh - 80px)}
+.snv{width:185px;flex-shrink:0;border-left:1px solid var(--brd);background:var(--p1);padding:10px 8px}
+.ns{font-size:9px;color:var(--fn);padding:10px 12px 4px;font-weight:800;letter-spacing:.5px}
+.nb{width:100%;display:flex;align-items:center;gap:8px;padding:8px 11px;border-radius:8px;color:var(--dm);font-size:12.5px;font-weight:600;text-align:right;background:transparent;margin-bottom:2px;cursor:pointer}
+.nb:hover{background:var(--p2);color:var(--tx)}.nb.on{background:rgba(232,163,61,.1);color:var(--amb)}
+.mp{flex:1;padding:16px;overflow-y:auto;min-width:0}
+.mtt{display:none;position:sticky;bottom:0;background:var(--p1);border-top:1px solid var(--brd);padding:5px 3px;gap:1px;z-index:40}
+@media(max-width:820px){.snv{display:none}.mtt{display:flex}.mp{padding:12px}}
+.mt{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:5px;color:var(--fn);font-size:9px;border-radius:7px;background:transparent;cursor:pointer}.mt.on{color:var(--amb);background:rgba(232,163,61,.09)}
+.ph{margin-bottom:14px}.ph h1{font-size:17px;font-weight:800}.ph p{color:var(--dm);font-size:12px;margin-top:4px;line-height:1.7}
+.kg{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:9px;margin-bottom:14px}
+.kc{background:var(--p1);border:1px solid var(--brd);border-radius:10px;padding:12px;position:relative;overflow:hidden}
+.kb{position:absolute;right:0;top:0;bottom:0;width:4px}.kl{font-size:10px;color:var(--dm);font-weight:600;margin-bottom:6px}.kv{font-size:21px;font-weight:800;font-family:monospace}.ks{font-size:10px;color:var(--fn);margin-top:2px}
+.kca .kb{background:var(--amb)}.kca .kv{color:var(--amb)}.kct .kb{background:var(--tl)}.kct .kv{color:var(--tl)}.kcr .kb{background:var(--rd)}.kcr .kv{color:var(--rd)}.kcb .kb{background:#5b9bd5}.kcb .kv{color:#5b9bd5}
+.card{background:var(--p1);border:1px solid var(--brd);border-radius:10px;padding:14px;margin-bottom:12px}
+.ch{display:flex;align-items:center;justify-content:space-between;margin-bottom:11px;gap:8px;flex-wrap:wrap}.ch h2{font-size:13.5px;font-weight:700}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:640px){.g2{grid-template-columns:1fr}}
+.tw{overflow-x:auto;border:1px solid var(--brd);border-radius:8px}table{width:100%;border-collapse:collapse;font-size:11.5px}
+thead th{background:var(--p2);padding:7px 9px;text-align:right;font-weight:700;color:var(--dm);white-space:nowrap;border-bottom:1px solid var(--brd)}
+tbody td{padding:7px 9px;border-bottom:1px solid var(--brd);white-space:nowrap}tbody tr:hover{background:var(--p2)}tbody tr:last-child td{border-bottom:none}
+.bg{display:inline-flex;padding:3px 7px;border-radius:5px;font-size:10.5px;font-weight:700}
+.bg.green{background:rgba(63,179,154,.1);color:var(--tl)}.bg.yellow{background:rgba(232,194,61,.1);color:#e8c23d}
+.bg.orange{background:rgba(224,138,77,.1);color:var(--og)}.bg.red{background:rgba(226,92,92,.1);color:var(--rd)}
+.bg.gray{background:var(--p2);color:var(--fn)}.bg.blue{background:rgba(91,155,213,.1);color:#5b9bd5}.bg.ow2{background:rgba(232,163,61,.12);color:var(--amb)}
+.btn{padding:7px 13px;border-radius:8px;font-weight:700;font-size:12px;display:inline-flex;align-items:center;gap:5px;cursor:pointer;border:none}
+.btnp{background:var(--amb);color:#1a1208}.btnp:hover{filter:brightness(1.08)}
+.btng{background:var(--p2);border:1px solid var(--brd);color:var(--dm)}.btng:hover{color:var(--tx)}
+.btnd{background:rgba(226,92,92,.1);color:var(--rd);border:1px solid rgba(226,92,92,.2)}
+.fl{margin-bottom:11px}.fl label{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:var(--dm);margin-bottom:5px}
+.fl input,.fl select,.fl textarea{width:100%;background:var(--p2);border:1px solid var(--brd);border-radius:8px;padding:9px 12px;color:var(--tx);font-size:13px}
+.fl input:focus,.fl select:focus,.fl textarea:focus{border-color:var(--amb)}
+.fr{display:grid;grid-template-columns:1fr 1fr;gap:9px}.ti{background:var(--p2);border:1px solid var(--brd);border-radius:8px;padding:7px 11px;color:var(--tx);font-size:12.5px;flex:1;min-width:110px}.ti:focus{border-color:var(--amb)}
+.ts{background:var(--p2);border:1px solid var(--brd);border-radius:8px;padding:7px 11px;color:var(--tx);font-size:12.5px}
+.tbar{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:11px;align-items:center}
+.cam-btn{padding:4px 8px;border-radius:6px;background:rgba(63,179,154,.12);border:1px solid rgba(63,179,154,.25);color:var(--tl);font-size:13px;cursor:pointer;line-height:1}
+.cam-btn:hover{background:rgba(63,179,154,.2)}
+.gate{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px}
+.gc{width:100%;max-width:720px;text-align:center}
+.rc{background:var(--p1);border:1px solid var(--brd);border-radius:12px;padding:18px 14px;transition:.15s}.rc:hover{border-color:rgba(255,255,255,.15);transform:translateY(-2px)}.rc h3{font-size:14px;font-weight:700;margin-bottom:5px}.rc p{color:var(--dm);font-size:11px;margin-bottom:14px;line-height:1.6;min-height:44px}
+.rbA,.rbB,.rbC{width:100%;padding:10px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;border:none}
+.rbA{background:var(--amb);color:#1a1208}.rbA:hover{filter:brightness(1.08)}.rbB{background:#5b9bd5;color:#fff}.rbB:hover{filter:brightness(1.1)}.rbC{background:var(--tl);color:#06231d}.rbC:hover{filter:brightness(1.08)}
+.ac{background:var(--p1);border:1px solid var(--brd);border-radius:12px;padding:22px;text-align:right;width:100%;max-width:400px;margin:0 auto}
+.at{font-size:17px;font-weight:800;margin-bottom:5px}.as{color:var(--dm);font-size:12px;margin-bottom:16px;line-height:1.7}.ae{color:var(--rd);font-size:12px;margin-bottom:9px;min-height:16px}
+.sb{width:100%;padding:12px;border-radius:9px;font-weight:800;font-size:14px;background:var(--amb);color:#1a1208;cursor:pointer;border:none}.sb:hover{filter:brightness(1.08)}.sb:disabled{opacity:.4;cursor:not-allowed}
+.bk{width:100%;padding:7px;background:transparent;border:1px solid var(--brd);border-radius:8px;color:var(--dm);font-size:12px;margin-top:8px;cursor:pointer}.bk:hover{color:var(--tx)}
+.cw{border:1px solid rgba(232,163,61,.35);border-radius:8px;padding:10px;background:rgba(232,163,61,.04);margin-bottom:11px}.cw label{font-size:10px;font-weight:800;color:var(--amb);display:block;margin-bottom:5px}
+.cw input{width:100%;background:transparent;border:none;border-bottom:1px solid rgba(232,163,61,.3);padding:6px 0;color:var(--tx);font-size:15px;letter-spacing:3px;font-family:monospace}.cw input:focus{border-bottom-color:var(--amb)}
+.rl{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--dm);margin-bottom:12px;cursor:pointer}.rl input[type=checkbox]{width:15px;height:15px;accent-color:var(--amb)}
+.dw{max-width:460px;margin:0 auto;padding:14px}
+.dc{background:var(--p1);border:1px solid var(--brd);border-radius:12px;padding:15px;margin-bottom:12px}
+.dt{font-size:15px;font-weight:800;margin-bottom:4px}.ds{color:var(--dm);font-size:11.5px;margin-bottom:14px;line-height:1.7}
+.obar{display:flex;align-items:center;justify-content:space-between;background:var(--p2);border:1px solid var(--brd);border-radius:8px;padding:8px 11px;margin-bottom:11px}
+.vp{position:relative}.vrs{position:absolute;top:calc(100% + 4px);right:0;left:0;background:var(--p2);border:1px solid var(--brd);border-radius:9px;max-height:190px;overflow-y:auto;z-index:30;display:none}.vrs.on{display:block}
+.vr{padding:8px 12px;border-bottom:1px solid var(--brd);cursor:pointer;font-size:12.5px}.vr:hover{background:var(--p1)}.vr:last-child{border-bottom:none}.vr b{font-family:monospace}.vr span{display:block;font-size:10.5px;color:var(--dm);margin-top:2px}
+.vc{display:flex;align-items:center;gap:10px;padding:10px;background:var(--p2);border-radius:9px;border:1px solid var(--brd);margin-bottom:12px}.vpl{font-family:monospace;font-weight:800;font-size:14px}.vds{font-size:10.5px;color:var(--dm);margin-top:2px}
+.rtoast{border-radius:10px;padding:13px;margin-top:12px;border:1px solid;display:flex;align-items:center;gap:10px}
+.rtoast.green{background:rgba(63,179,154,.07);border-color:rgba(63,179,154,.25)}.rtoast.yellow{background:rgba(232,194,61,.07);border-color:rgba(232,194,61,.25)}.rtoast.orange{background:rgba(224,138,77,.07);border-color:rgba(224,138,77,.25)}.rtoast.red{background:rgba(226,92,92,.07);border-color:rgba(226,92,92,.25)}
+.rtoast-t{font-weight:800;font-size:13px}.rtoast-d{font-size:11.5px;color:var(--dm);margin-top:2px;line-height:1.6}
+.rii{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--brd)}.rii:last-child{border-bottom:none}
+.arow{display:flex;align-items:flex-start;gap:9px;padding:11px;border-radius:9px;margin-bottom:7px;border:1px solid var(--brd);background:var(--p2)}
+.adot{width:7px;height:7px;border-radius:50%;margin-top:5px;flex-shrink:0}.adot.red{background:var(--rd)}.adot.orange{background:var(--og)}
+.op{background:linear-gradient(135deg,rgba(232,163,61,.07),rgba(91,155,213,.04));border:1px solid rgba(232,163,61,.2);border-radius:10px;padding:13px;margin-bottom:13px}.op h2{font-size:13.5px;font-weight:800;color:var(--amb);margin-bottom:4px}.op p{font-size:11.5px;color:var(--dm);line-height:1.7}
+.toastEl{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);background:var(--p2);border:1px solid var(--brd);padding:9px 16px;border-radius:9px;font-size:12.5px;display:none;align-items:center;gap:7px;z-index:999;white-space:nowrap;max-width:calc(100vw - 28px);box-shadow:0 8px 24px rgba(0,0,0,.5)}
+.es{text-align:center;padding:30px 14px;color:var(--fn)}.es .ei{font-size:24px;margin-bottom:8px;display:block}.es .et{font-size:13px;font-weight:600;color:var(--dm)}.num{font-family:monospace}</style>
+</head><body>
+<div id="A"></div>
+<div class="toastEl" id="T"></div>
+<script>
+var FD=[{"p":"أ أ ع 7199","m":"Hyundai","mo":"شيول بعجلات هيونداي HL770","u":"شيول كبير","l":"الرياض"},{"p":"أ أ ن 6647","m":"JCB","mo":"حفار بواجهتين JCB 3CX","u":"حفار باك هول","l":"الأفلاج"},{"p":"أ أ ن 6648","m":"JCB","mo":"حفار بواجهتين JCB 3CX","u":"حفار باك هول","l":"الحريق"},{"p":"أ أ ن 6649","m":"JCB","mo":"حفار بواجهتين JCB 3CX","u":"حفار باك هول","l":"الحريق"},{"p":"أ ر ك 1453","m":"Mercedes-Benz","mo":"أكتروس شاحنة ثقيلة","u":"ونش 10 طن","l":"وادي الدواسر"},{"p":"أ ص أ 3772","m":"Isuzu","mo":"قلاب","u":"قلاب دينا صغير","l":"الرياض"},{"p":"أ ص أ 3774","m":"Isuzu","mo":"ديانا NLR 450","u":"ديانا 1 كابينة صبدوق","l":"الرياض"},{"p":"أ ص أ 3775","m":"Isuzu","mo":"ديانا NLR 450","u":"قلاب دينا صغير","l":"الخرج"},{"p":"أ ص أ 3777","m":"Isuzu","mo":"NPR قلاب","u":"قلاب دينا صغير","l":"السليل"},{"p":"أ ص أ 3778","m":"Isuzu","mo":"كرين","u":"ونش 10 طن","l":"الرياض"},{"p":"أ ص أ 6472","m":"","mo":"سطحة","u":"سطحة","l":"الرياض"},{"p":"أ ص أ 6473","m":"","mo":"","u":"سطحة","l":"الخرج"},{"p":"أ ص ح 3163","m":"Isuzu","mo":"قلاب","u":"قلاب دينا صغير","l":"الرياض"},{"p":"أ ص ح 5087","m":"Isuzu","mo":"NPS قلاب","u":"قلاب دينا صغير","l":"وادي الدواسر"},{"p":"أ ص ح 5425","m":"Isuzu","mo":"ديانا NLR 345","u":"قلاب دينا صغير","l":"وادي الدواسر"},{"p":"أ ص ح 5529","m":"Isuzu","mo":"ديانا NLR 345","u":"قلاب دينا صغير","l":"وادي الدواسر"},{"p":"أ ص ح 5619","m":"Isuzu","mo":"ديانا NLR 450","u":"قلاب دينا صغير","l":"الرياض"},{"p":"أ ص ح 5650","m":"Isuzu","mo":"قلاب","u":"قلاب دينا صغير","l":"الرياض"},{"p":"أ ص ح 5654","m":"Isuzu","mo":"ديانا NMR 330 دبل كابينة","u":"ديانا 2 كابينة","l":"وادي الدواسر"},{"p":"أ ص ح 5656","m":"Isuzu","mo":"FRR شاحنة متوسطة","u":"سطحة","l":"الرياض"},{"p":"أ ص ح 5685","m":"Isuzu","mo":"ديانا NLR 345","u":"ديانا 1 كابينة صبدوق","l":"وادي الدواسر"},{"p":"أ ص ح 5858","m":"Isuzu","mo":"NPR قلاب","u":"قلاب دينا صغير","l":"الرياض"},{"p":"أ ص ح 5859","m":"Isuzu","mo":"D-Max غمارة 3.0 ديزل","u":"سلة هوائية 14م","l":"الرياض"},{"p":"أ ص ح 5862","m":"Isuzu","mo":"D-Max غمارة 3.0 ديزل","u":"سلة هوائية 14م","l":"الرياض"},{"p":"أ ص ح 6053","m":"Hino","mo":"شاحنة سلة هوائية هينو 500","u":"سلة هوائية 12 م","l":"الخرج"},{"p":"أ ص ح 6054","m":"Isuzu","mo":"سطحة","u":"سطحة","l":"الخرج"},{"p":"أ ص ح 6101","m":"Isuzu","mo":"قلاب","u":"قلاب دينا صغير","l":"الرياض"},{"p":"أ ص ح 6102","m":"Mitsubishi Fuso","mo":"قلاب","u":"قلاب دينا صغير","l":"الخرج"},{"p":"أ ص ح 6303","m":"Isuzu","mo":"FVM سطحة","u":"سطحة","l":"الرياض"},{"p":"أ ص ح 6365","m":"Isuzu","mo":"سطحة","u":"سطحة","l":"الرياض"},{"p":"أ ص ح 6367","m":"Isuzu","mo":"ديانا NMR 330 دبل كابينة","u":"ديانا 2 كابينة","l":"الخرج"},{"p":"أ ص ح 6368","m":"Isuzu","mo":"ديانا NMR 330 دبل كابينة","u":"ديانا 2 كابينة","l":"وادي الدواسر"},{"p":"أ ص ح 6990","m":"Isuzu","mo":"ديانا NMR 230 دبل كابينة","u":"ديانا 2 كابينة","l":"الرياض"},{"p":"أ ص ح 7004","m":"Isuzu","mo":"ديانا NMR 230 دبل كابينة","u":"ديانا 2 كابينة","l":"الرياض"},{"p":"أ ص ح 7005","m":"Isuzu","mo":"FVM سطحة","u":"سطحة","l":"الرياض"},{"p":"أ ص ح 7125","m":"Isuzu","mo":"FVZ شاحنة ثقيلة","u":"ونش 10 طن","l":"الأفلاج"},{"p":"أ ص ح 7128","m":"Isuzu","mo":"ديانا NMR 230 دبل كابينة","u":"ديانا 2 كابينة","l":"الخرج"},{"p":"أ ص ح 7129","m":"Isuzu","mo":"ديانا NLR 450 صندوق","u":"ديانا 1 كابينة صبدوق","l":"الخرج"},{"p":"أ ص ح 7130","m":"Isuzu","mo":"ديانا NMR 230 دبل كابينة","u":"ديانا 2 كابينة","l":"الخرج"},{"p":"أ ص ح 7131","m":"Isuzu","mo":"FVM سطحة","u":"سطحة","l":"الرياض"},{"p":"أ ص ح 7132","m":"Isuzu","mo":"FRR شاحنة متوسطة","u":"سطحة","l":"الرياض"},{"p":"أ ص ح 7134","m":"Isuzu","mo":"ديانا NMR 230 دبل كابينة","u":"ديانا 2 كابينة","l":"الرياض"},{"p":"أ ص ح 7234","m":"Isuzu","mo":"ديانا NLR 450","u":"قلاب دينا صغير","l":"الرياض"},{"p":"أ ص ح 7240","m":"Isuzu","mo":"FVM سطحة","u":"سطحة","l":"الرياض"},{"p":"أ ص د 5218","m":"Mitsubishi Fuso","mo":"كانتر FG فوزو","u":"سلة هوائية 14م","l":"الأفلاج"},{"p":"أ ص د 6077","m":"مرسيدس","mo":"رأس","u":"سيارة نقل مواد (تريلا) اكثر من 10 طن","l":"الخرج"},{"p":"أ ص د 6223","m":"Mitsubishi Fuso","mo":"كانتر فوزو خفيفة","u":"سلة هوائية 14م","l":"وادي الدواسر"},{"p":"أ ص د 6224","m":"Isuzu","mo":"قلاب","u":"قلاب دينا صغير","l":"الرياض"},{"p":"أ ص د 6226","m":"Isuzu","mo":"NPR قلاب","u":"قلاب دينا صغير","l":"الرياض"},{"p":"أ ص د 6227","m":"Isuzu","mo":"ديانا NLR 345","u":"قلاب دينا صغير","l":"وادي الدواسر"},{"p":"أ ص د 6228","m":"Isuzu","mo":"ديانا NLR 345","u":"قلاب دينا صغير","l":"وادي الدواسر"},{"p":"أ ص د 6229","m":"Mitsubishi Fuso","mo":"كانتر فوزو خفيفة","u":"سلة هوائية 14م","l":"وادي الدواسر"},{"p":"أ ص د 6807","m":"Isuzu","mo":"NPS قلاب","u":"قلاب دينا صغير","l":"الرياض"},{"p":"أ ص س 4841","m":"Mercedes-Benz","mo":"أكتروس شاحنة ثقيلة","u":"ونش 10 طن","l":"وادي الدواسر"},{"p":"أ ص س 4842","m":"Isuzu","mo":"ديانا NMR 230 دبل كابينة","u":"ديانا 2 كابينة","l":"وادي الدواسر"},{"p":"أ ص س 4843","m":"Isuzu","mo":"سطحة","u":"سطحة","l":"الرياض"},{"p":"أ ص س 4844","m":"Mitsubishi Fuso","mo":"كانتر FE فوزو","u":"سلة هوائية 14م","l":"وادي الدواسر"},{"p":"أ ص س 4846","m":"Mitsubishi Fuso","mo":"كانتر FE فوزو","u":"سلة هوائية 14م","l":"الأفلاج"},{"p":"أ ص ن 1396","m":"Isuzu","mo":"FRR شاحنة / قلاب","u":"سلة هوائية 14م","l":"وادي الدواسر"},{"p":"ا س س 4416","m":"Mercedes-Benz","mo":"أكتروس شاحنة تريلا","u":"سيارة نقل مواد (تريلا) اكثر من 10 طن","l":"الرياض"},{"p":"ب ط ر 2845","m":"Isuzu","mo":"D-Max غمارة 3.0 ديزل","u":"سيارة بكب 1 كابينة","l":"الأفلاج"},{"p":"18BB07415","m":"","mo":"","u":"هانشا","l":"الخرج"},{"p":"9770 ح ع ل","m":"","mo":"","u":"سيارة اكسنت","l":"الخرج"},{"p":"أ أ ح 1846","m":"Caterpillar","mo":"حفار بواجهتين كتربلر 422F","u":"حفار باك هول","l":"الرياض"},{"p":"أ أ ح 1929","m":"Caterpillar","mo":"حفار بواجهتين كتربلر 422F","u":"حفار باك هول","l":"الخرج"},{"p":"أ أ ح 1931","m":"Caterpillar","mo":"شيول دوار كتربلر 262D","u":"حفار للحفريات الدقيقة ( ترنشر )","l":"الخرج"},{"p":"أ أ ح 3194","m":"Caterpillar","mo":"شيول دوار كتربلر 216B3","u":"شيول صغير بوبكات بكت","l":"وادي الدواسر"},{"p":"أ أ ح 3195","m":"Caterpillar","mo":"حفار بواجهتين كتربلر 422F","u":"حفار باك هول","l":"الخرج"},{"p":"أ أ ح 4635","m":"Caterpillar","mo":"شيول دوار كتربلر 262D","u":"حفار للحفريات الدقيقة ( ترنشر )","l":"الرياض"},{"p":"أ أ ح 5800","m":"Caterpillar","mo":"شيول دوار كتربلر 246D","u":"حفار للحفريات الدقيقة ( ترنشر )","l":"وادي الدواسر"},{"p":"أ أ ح 8592","m":"Caterpillar","mo":"شيول دوار كتربلر 226B3","u":"شيول صغير بوبكات بكت","l":"وادي الدواسر"},{"p":"أ أ ح 8593","m":"Caterpillar","mo":"حفار بواجهتين كتربلر 422F","u":"حفار باك هول","l":"الرياض"},{"p":"أ أ ح 8594","m":"Caterpillar","mo":"شيول دوار كتربلر 226B3","u":"شيول صغير بوبكات بكت","l":"وادي الدواسر"},{"p":"أ أ ح 8595","m":"Caterpillar","mo":"حفار بواجهتين كتربلر 422F","u":"حفار باك هول","l":"الخرج"},{"p":"أ أ ح 8596","m":"Caterpillar","mo":"شيول دوار كتربلر 262D","u":"حفار للحفريات الدقيقة ( ترنشر )","l":"الرياض"},{"p":"أ أ ح 8667","m":"Caterpillar","mo":"حفار بواجهتين كتربلر 422F","u":"حفار باك هول","l":"وادي الدواسر"},{"p":"أ أ ح 9202","m":"Caterpillar","mo":"شيول دوار كتربلر 216B3","u":"شيول صغير بوبكات بكت","l":"الرياض"},{"p":"أ أ ح 9203","m":"Caterpillar","mo":"مدحلة مزدوجة كتربلر CB14","u":"رصاصة اسفلت صغير","l":"وادي الدواسر"},{"p":"أ أ د 5035","m":"Caterpillar","mo":"شيول دوار كتربلر 226B3","u":"شيول صغير بوبكات بكت","l":"وادي الدواسر"},{"p":"أ أ ر 5406","m":"Caterpillar","mo":"حفار بواجهتين كتربلر 426F","u":"حفار باك هول","l":"الرياض"},{"p":"أ أ ر 5575","m":"Caterpillar","mo":"حفار بواجهتين كتربلر 426F","u":"حفار باك هول","l":"الرياض"},{"p":"أ أ ر 5600","m":"Caterpillar","mo":"حفار بواجهتين كتربلر 426F","u":"حفار باك هول","l":"الخرج"},{"p":"أ أ ر 5739","m":"Caterpillar","mo":"شيول دوار كتربلر 226B3","u":"شيول صغير بوبكات بكت","l":"وادي الدواسر"},{"p":"أ أ ر 5740","m":"Caterpillar","mo":"شيول دوار كتربلر 226B3","u":"شيول صغير بوبكات بكت","l":"وادي الدواسر"},{"p":"أ أ ر 5741","m":"Caterpillar","mo":"شيول دوار كتربلر 226B3","u":"شيول صغير بوبكات بكت","l":"الخرج"},{"p":"أ أ ر 5742","m":"Caterpillar","mo":"شيول دوار كتربلر 226B3","u":"شيول صغير بوبكات بكت","l":"وادي الدواسر"},{"p":"أ أ ر 5960","m":"Caterpillar","mo":"حفار بواجهتين كتربلر 426F","u":"حفار باك هول","l":"وادي الدواسر"},{"p":"أ أ ر 5971","m":"Caterpillar","mo":"حفار بواجهتين كتربلر 426F","u":"حفار باك هول","l":"وادي الدواسر"},{"p":"أ أ ر 5972","m":"Caterpillar","mo":"شيول دوار كتربلر 262D","u":"حفار للحفريات الدقيقة ( ترنشر )","l":"الخرج"},{"p":"أ أ ر 6351","m":"Caterpillar","mo":"شيول دوار كتربلر 262D","u":"حفار للحفريات الدقيقة ( ترنشر )","l":"وادي الدواسر"},{"p":"أ أ ر 6352","m":"Caterpillar","mo":"شيول دوار كتربلر 216B3","u":"شيول صغير بوبكات بكت","l":"وادي الدواسر"},{"p":"أ أ ر 6353","m":"Caterpillar","mo":"شيول دوار كتربلر 216B3","u":"شيول صغير بوبكات بكت","l":"الرياض"},{"p":"أ أ ر 7259","m":"JCB","mo":"حفار بواجهتين JCB 3CX","u":"حفار باك هول","l":"وادي الدواسر"},{"p":"أ أ ص 6102","m":"Caterpillar","mo":"حفار بواجهتين كتربلر 426F","u":"حفار باك هول","l":"الخرج"},{"p":"أ أ ص 6198","m":"Caterpillar","mo":"حفار بواجهتين كتربلر 426F","u":"حفار باك هول","l":"الخرج"},{"p":"أ أ ص 6199","m":"Caterpillar","mo":"شيول دوار كتربلر 262D","u":"حفار للحفريات الدقيقة ( ترنشر )","l":"الخرج"},{"p":"أ أ ط 3687","m":"Caterpillar","mo":"حفار بواجهتين كتربلر 426F","u":"حفار باك هول","l":"الخرج"},{"p":"أ أ ط 3688","m":"Caterpillar","mo":"حفار بواجهتين كتربلر 426F","u":"حفار باك هول","l":"وادي الدواسر"},{"p":"أ أ ط 3689","m":"Caterpillar","mo":"شيول دوار كتربلر 226B3","u":"شيول صغير بوبكات بكت","l":"الخرج"},{"p":"أ أ ق 7975","m":"Caterpillar","mo":"شيول دوار كتربلر 262D","u":"حفار للحفريات الدقيقة ( ترنشر )","l":"الرياض"},{"p":"أ أ ك 9366","m":"Caterpillar","mo":"حفار بواجهتين كتربلر 426","u":"حفار باك هول","l":"الرياض"},{"p":"أ أ ك 9367","m":"Caterpillar","mo":"حفار بواجهتين كتربلر 426","u":"حفار باك هول","l":"الرياض"},{"p":"أ أ ك 9368","m":"Caterpillar","mo":"حفار بواجهتين كتربلر 426","u":"حفار باك هول","l":"الخرج"},{"p":"أ أ ك 6407","m":"Caterpillar","mo":"حفار بواجهتين كتربلر 426","u":"حفار باك هول","l":"الرياض"},{"p":"أ أ ك 6408","m":"Caterpillar","mo":"حفار بواجهتين كتربلر 426","u":"حفار باك هول","l":"الخرج"},{"p":"أ أ ك 6412","m":"Caterpillar","mo":"حفار بواجهتين كتربلر 426","u":"حفار باك هول","l":"وادي الدواسر"},{"p":"أ أ ك 9369","m":"Caterpillar","mo":"حفار بواجهتين كتربلر 426","u":"حفار باك هول","l":"الرياض"},{"p":"أ أ ك 9371","m":"Caterpillar","mo":"حفار بواجهتين كتربلر 426","u":"حفار باك هول","l":"الرياض"},{"p":"أ أ ك 9420","m":"Caterpillar","mo":"حفار بواجهتين كتربلر 426","u":"حفار باك هول","l":"الخرج"},{"p":"أ أ ك 9434","m":"Caterpillar","mo":"حفار بواجهتين كتربلر 426","u":"حفار باك هول","l":"الخرج"},{"p":"أ أ ك 9435","m":"Caterpillar","mo":"حفار بواجهتين كتربلر 426","u":"حفار باك هول","l":"الخرج"},{"p":"أ أ م 2784","m":"Ammann","mo":"مدحلة مزدوجة أمان ARX 26-2","u":"رصاصة اسفلت صغير","l":"وادي الدواسر"},{"p":"أ أ م 7381","m":"Bobcat","mo":"حفار مدمج بوبكات E","u":"شيول صغير بوبكات بكت","l":"وادي الدواسر"},{"p":"أ أ م 7964","m":"Ammann","mo":"مدحلة مزدوجة أمان ARX 26-2","u":"رصاصة اسفلت صغير","l":"الرياض"},{"p":"أ أ ن 3151","m":"Caterpillar","mo":"شيول دوار كتربلر 262D","u":"حفار للحفريات الدقيقة ( ترنشر )","l":"وادي الدواسر"},{"p":"أ أ ن 3171","m":"Caterpillar","mo":"شيول دوار كتربلر 262D","u":"حفار للحفريات الدقيقة ( ترنشر )","l":"وادي الدواسر"},{"p":"أ أ ن 3172","m":"Caterpillar","mo":"شيول دوار كتربلر 262D","u":"حفار للحفريات الدقيقة ( ترنشر )","l":"الحريق"},{"p":"أ أ ن 6631","m":"JCB","mo":"شيول دوار JCB 135W","u":"شيول صغير بوبكات بكت","l":"الأفلاج"},{"p":"أ أ ن 6646","m":"JCB","mo":"شيول دوار JCB 135W","u":"شيول صغير بوبكات بكت","l":"الأفلاج"},{"p":"أ أ ن 6650","m":"JCB","mo":"شيول دوار JCB 135W","u":"شيول صغير بوبكات بكت","l":"الأفلاج"},{"p":"أ أ ن 6817","m":"","mo":"","u":"حفار للحفريات الدقيقة ( ترنشر )","l":"الأفلاج"},{"p":"أ أ ن 6818","m":"","mo":"","u":"حفار للحفريات الدقيقة ( ترنشر )","l":"الأفلاج"},{"p":"أ أ ن 6934","m":"JCB","mo":"شيول دوار JCB 135W","u":"شيول صغير بوبكات بكت","l":"الأفلاج"},{"p":"أ أ ن 6935","m":"JCB","mo":"شيول دوار JCB 135W","u":"شيول صغير بوبكات بكت","l":"الأفلاج"},{"p":"أ أ ن 6936","m":"JCB","mo":"حفار بواجهتين JCB 3CX","u":"حفار باك هول","l":"الأفلاج"},{"p":"أ أ ن 6937","m":"JCB","mo":"حفار بواجهتين JCB 3CX","u":"حفار باك هول","l":"الأفلاج"},{"p":"أ أ ن 6938","m":"JCB","mo":"حفار بواجهتين JCB 3CX","u":"حفار باك هول","l":"الأفلاج"},{"p":"أ أ ن 6944","m":"JCB","mo":"شيول دوار JCB 135W","u":"شيول صغير بوبكات بكت","l":"الحريق"},{"p":"أ أ و 9840","m":"Mercedes-Benz","mo":"أكسور رأس قاطرة","u":"سلة هوائية 12 م","l":"السليل"},{"p":"أ أم 3369","m":"Caterpillar","mo":"شيول دوار كتربلر 262D","u":"حفار للحفريات الدقيقة ( ترنشر )","l":"وادي الدواسر"},{"p":"أ ب ب 7431","m":"Mercedes-Benz","mo":"أتيجو شاحنة متوسطة","u":"سلة هوائية 12 م","l":"السليل"},{"p":"أ ح ص 6366","m":"Isuzu","mo":"ديانا NMR 230 دبل كابينة","u":"ديانا 2 كابينة","l":"الرياض"},{"p":"أ ر ك 1376","m":"Mercedes-Benz","mo":"أكتروس شاحنة ثقيلة","u":"ونش 8 طن","l":"السليل"},{"p":"أ ص ن 4389","m":"Isuzu","mo":"ديانا NLR 450","u":"قلاب دينا صغير","l":"الأفلاج"},{"p":"أ ص ن 4390","m":"Isuzu","mo":"ديانا NLR 450","u":"قلاب دينا صغير","l":"وادي الدواسر"},{"p":"أ ص ن 4391","m":"Isuzu","mo":"ديانا NLR 450","u":"قلاب دينا صغير","l":"الحريق"},{"p":"أ ص ن 9940","m":"Isuzu","mo":"ديانا NLR 450","u":"قلاب دينا صغير","l":"الخرج"},{"p":"أ ص ن 9941","m":"Isuzu","mo":"ديانا NLR 450","u":"قلاب دينا صغير","l":"الرياض"},{"p":"أ ص ن 9942","m":"Isuzu","mo":"ديانا NLR 450","u":"قلاب دينا صغير","l":"الخرج"},{"p":"أ ص أ 3771","m":"Isuzu","mo":"FRR شاحنة متوسطة","u":"ونش 7.5 طن","l":"الرياض"},{"p":"أ ص أ 3773","m":"Isuzu","mo":"كرين","u":"ونش 10 طن","l":"الرياض"},{"p":"أ ص أ 3776","m":"Isuzu","mo":"كرين","u":"ونش 10 طن","l":"الرياض"},{"p":"أ ص أ 3937","m":"Sany","mo":"شاحنة ثقيلة ساني","u":"شاحنة قلاب نقل كبير","l":"الرياض"},{"p":"أ ص ب 1240","m":"Isuzu","mo":"FRR شاحنة متوسطة","u":"سطحة","l":"الخرج"},{"p":"أ ص ح 5648","m":"Isuzu","mo":"قلاب","u":"قلاب دينا صغير","l":"الرياض"},{"p":"أ ص ح 5649","m":"Isuzu","mo":"قلاب","u":"قلاب دينا صغير","l":"الرياض"},{"p":"أ ص ح 5655","m":"Isuzu","mo":"FVZ شاحنة ثقيلة","u":"ونش 10 طن","l":"الحريق"},{"p":"أ ص ح 6055","m":"Hino","mo":"شاحنة سلة هوائية هينو 500","u":"سلة هوائية 12 م","l":"الخرج"},{"p":"أ ص ح 6304","m":"Isuzu","mo":"سطحة","u":"سطحة","l":"الرياض"},{"p":"أ ص ح 6366","m":"Isuzu","mo":"قلاب","u":"قلاب دينا صغير","l":"الرياض"},{"p":"أ ص ح 6440","m":"Hino","mo":"شاحنة سلة هوائية هينو 500","u":"سلة هوائية 12 م","l":"وادي الدواسر"},{"p":"أ ص ح 6459","m":"Isuzu","mo":"ديانا NMR 230 دبل كابينة","u":"ديانا 2 كابينة","l":"الرياض"},{"p":"أ ص ح 7002","m":"Isuzu","mo":"ديانا NMR 230 دبل كابينة","u":"ديانا 2 كابينة","l":"الرياض"},{"p":"أ ص ح 7003","m":"Isuzu","mo":"ديانا NMR 230 دبل كابينة","u":"ديانا 2 كابينة","l":"الرياض"},{"p":"أ ص ح 7124","m":"Isuzu","mo":"قلاب","u":"قلاب دينا صغير","l":"الرياض"},{"p":"أ ص ح 7126","m":"Isuzu","mo":"سطحة","u":"سطحة","l":"الرياض"},{"p":"أ ص ح 7127","m":"Isuzu","mo":"كرين","u":"ونش 10 طن","l":"الرياض"},{"p":"أ ص ح 7133","m":"Isuzu","mo":"FRR شاحنة متوسطة","u":"سطحة","l":"الرياض"},{"p":"أ ص ح 7235","m":"Isuzu","mo":"سلة","u":"سلة هوائية 14م","l":"الرياض"},{"p":"أ ص د 5212","m":"Isuzu","mo":"كرين","u":"ونش 7.5 طن","l":"الرياض"},{"p":"أ ص ر 5000","m":"Isuzu","mo":"FRR شاحنة متوسطة","u":"سطحة","l":"وادي الدواسر"},{"p":"أ ص س 4845","m":"Isuzu","mo":"ديانا NLR 450","u":"قلاب دينا صغير","l":"الرياض"},{"p":"أ ص ط 2059","m":"Isuzu","mo":"FRR شاحنة متوسطة","u":"سطحة","l":"الحريق"},{"p":"أ ص ل 1304","m":"Isuzu","mo":"FRR شاحنة متوسطة","u":"سطحة","l":"الأفلاج"},{"p":"أ ص ل 1305","m":"Isuzu","mo":"كرين","u":"ونش 7.5 طن","l":"الرياض"},{"p":"أ ص ل 1306","m":"Isuzu","mo":"سطحة","u":"سطحة","l":"الرياض"},{"p":"أ ص ل 1313","m":"Isuzu","mo":"سطحة","u":"سطحة","l":"الرياض"},{"p":"أ ص ل 9846","m":"Isuzu","mo":"قلاب","u":"قلاب دينا صغير","l":"الرياض"},{"p":"أ ص ل 9847","m":"Isuzu","mo":"NPR قلاب","u":"قلاب دينا صغير","l":"الرياض"},{"p":"أ ص ل 9848","m":"Isuzu","mo":"NPR قلاب","u":"قلاب دينا صغير","l":"الرياض"},{"p":"أ ص ل 9849","m":"Isuzu","mo":"NPR قلاب","u":"قلاب دينا صغير","l":"الرياض"},{"p":"أ ص ل 9850","m":"Isuzu","mo":"NPR قلاب","u":"قلاب دينا صغير","l":"الخرج"},{"p":"أ ص م 1171","m":"Isuzu","mo":"FRR شاحنة / قلاب","u":"سلة هوائية 14م","l":"وادي الدواسر"},{"p":"أ ص م 1172","m":"Isuzu","mo":"FRR شاحنة / قلاب","u":"سلة هوائية 14م","l":"الرياض"},{"p":"أ ص ن 1395","m":"Isuzu","mo":"FRR شاحنة / قلاب","u":"سلة هوائية 14م","l":"الرياض"},{"p":"أ ص ن 2593","m":"Isuzu","mo":"FRR شاحنة / قلاب","u":"سلة هوائية 14م","l":"وادي الدواسر"},{"p":"أ ص ن 2594","m":"Isuzu","mo":"FRR شاحنة / قلاب","u":"سلة هوائية 14م","l":"وادي الدواسر"},{"p":"أ ص ن 6768","m":"Isuzu","mo":"ديانا NMR 230 دبل كابينة","u":"ديانا 2 كابينة","l":"الأفلاج"},{"p":"أ ص ن 6894","m":"Isuzu","mo":"ديانا NLR 450","u":"قلاب دينا صغير","l":"الأفلاج"},{"p":"أ ص ن 6895","m":"Isuzu","mo":"ديانا NMR 230 دبل كابينة","u":"ديانا 2 كابينة","l":"الأفلاج"},{"p":"أ ص ن 9318","m":"Isuzu","mo":"FVZ شاحنة ثقيلة","u":"ونش 21 طن","l":"الخرج"},{"p":"أ ص ن 9319","m":"Isuzu","mo":"FVZ شاحنة ثقيلة","u":"ونش 21 طن","l":"وادي الدواسر"},{"p":"أ ص ن 9320","m":"Isuzu","mo":"FVZ شاحنة ثقيلة","u":"ونش 21 طن","l":"الخرج"},{"p":"أ ص ن 9431","m":"Isuzu","mo":"ديانا NMR 230 دبل كابينة","u":"ديانا 2 كابينة","l":"الأفلاج"},{"p":"أ ص ن 9432","m":"Isuzu","mo":"ديانا NLR 450","u":"ديانا 1 كابينة صبدوق","l":"الأفلاج"},{"p":"أ ص ن 9916","m":"Isuzu","mo":"ديانا NLR 345","u":"ديانا 1 كابينة صبدوق","l":"الأفلاج"},{"p":"أ ص ن 9937","m":"Isuzu","mo":"ديانا NMR 230 دبل كابينة","u":"ديانا 2 كابينة","l":"الأفلاج"},{"p":"أ ص ن 9938","m":"Isuzu","mo":"ديانا NMR 230 دبل كابينة","u":"ديانا 2 كابينة","l":"الخرج"},{"p":"أ ص ن 9939","m":"Isuzu","mo":"ديانا NMR 230 دبل كابينة","u":"ديانا 2 كابينة","l":"الرياض"},{"p":"أ ص ن 9943","m":"Isuzu","mo":"ديانا NMR 230 دبل كابينة","u":"ديانا 2 كابينة","l":"الرياض"},{"p":"أ ص ن 9944","m":"Isuzu","mo":"ديانا NMR 230 دبل كابينة","u":"ديانا 2 كابينة","l":"الخرج"},{"p":"أ ط ص 7654","m":"Isuzu","mo":"FRR شاحنة / قلاب","u":"ايسوزو","l":"الرياض"},{"p":"أ ط ص 7655","m":"Isuzu","mo":"FVZ شاحنة ثقيلة","u":"ونش 10 طن","l":"الرياض"},{"p":"أ ط ص 7657","m":"Isuzu","mo":"ديانا NMR 230 دبل كابينة","u":"ديانا 2 كابينة","l":"الرياض"},{"p":"أ ط ص 7658","m":"Isuzu","mo":"ديانا NMR 230 دبل كابينة","u":"ديانا 2 كابينة","l":"الرياض"},{"p":"أ ط ص 7660","m":"Isuzu","mo":"FRR شاحنة متوسطة","u":"سطحة","l":"الرياض"},{"p":"أ ط ص 7703","m":"Isuzu","mo":"NPR قلاب","u":"قلاب دينا صغير","l":"الرياض"},{"p":"أ ط ص 7704","m":"Isuzu","mo":"NPR قلاب","u":"قلاب دينا صغير","l":"الرياض"},{"p":"أ ط ص 7705","m":"Isuzu","mo":"NPR قلاب","u":"قلاب دينا صغير","l":"الخرج"},{"p":"أ ط ص 7706","m":"Isuzu","mo":"NPR قلاب","u":"قلاب دينا صغير","l":"الرياض"},{"p":"أ ط ص 7707","m":"Isuzu","mo":"NPR قلاب","u":"قلاب دينا صغير","l":"الخرج"},{"p":"أ ط ص 7708","m":"Isuzu","mo":"NPR قلاب","u":"قلاب دينا صغير","l":"الرياض"},{"p":"أ ط ص 7709","m":"Isuzu","mo":"NPR قلاب","u":"قلاب دينا صغير","l":"الرياض"},{"p":"أ ط ح 9753","m":"Isuzu","mo":"ديانا NMR 230 دبل كابينة","u":"ديانا 2 كابينة","l":"الرياض"},{"p":"أ ط ح 9793","m":"Isuzu","mo":"سطحة","u":"ايسوزو","l":"الرياض"},{"p":"أ ط ص 7656","m":"Isuzu","mo":"FRR شاحنة متوسطة","u":"ونش 7.5 طن","l":"الرياض"},{"p":"أ ط ص 7659","m":"Isuzu","mo":"كرين","u":"ونش 7.5 طن","l":"الرياض"},{"p":"ا ا ر 8753","m":"Caterpillar","mo":"حفار بواجهتين كتربلر 426F","u":"حفار باك هول","l":"الرياض"},{"p":"ا ا ر 8754","m":"Caterpillar","mo":"حفار بواجهتين كتربلر 426F","u":"حفار باك هول","l":"وادي الدواسر"},{"p":"ا س م 7292","m":"Mercedes-Benz","mo":"مرسيدس شاحنة ثقيلة","u":"سلة هوائية 14م","l":"وادي الدواسر"},{"p":"ا ص ك 6444","m":"Mercedes-Benz","mo":"كرين","u":"ونش 10 طن","l":"الخرج"},{"p":"ا ك ب 1061","m":"Mercedes-Benz","mo":"أكتروس شاحنة تريلا","u":"سيارة نقل مواد (تريلا) اكثر من 10 طن","l":"الخرج"},{"p":"ب أ هـ 6860","m":"Mercedes-Benz","mo":"أكتروس خلاط خرسانة","u":"خلاطة اسمنت","l":"وادي الدواسر"},{"p":"ب أ ي 2896","m":"Mitsubishi Fuso","mo":"كانتر فوزو سطحة","u":"سطحة","l":"وادي الدواسر"},{"p":"ب ب ع 9357","m":"Isuzu","mo":"D-Max غمارتين 3.0 ديزل","u":"سيارة بكب 2 كابينة","l":"الرياض"},{"p":"ب ب ل 1031","m":"Isuzu","mo":"D-Max غمارتين 4WD 3.0 ديزل","u":"سيارة بكب 2 كابينة","l":"وادي الدواسر"},{"p":"ب ب ل 1664","m":"Isuzu","mo":"D-Max غمارة 3.0 ديزل","u":"سيارة بكب 1 كابينة","l":"وادي الدواسر"},{"p":"ب ب ل 1719","m":"Isuzu","mo":"D-Max غمارتين 3.0 ديزل","u":"سيارة بكب 2 كابينة","l":"الخرج"},{"p":"ب ح ب 9310","m":"Toyota","mo":"هايس 2.7 فان ركاب","u":"باص","l":"الرياض"},{"p":"ب ح ب 9752","m":"Mercedes-Benz","mo":"كرين","u":"ونش 8 طن","l":"الخرج"},{"p":"ب ح د 1670","m":"Isuzu","mo":"D-Max غمارتين 3.0 ديزل","u":"سيارة بكب 2 كابينة","l":"وادي الدواسر"},{"p":"ب ح د 1672","m":"Isuzu","mo":"D-Max غمارتين 3.0 ديزل","u":"سيارة بكب 2 كابينة","l":"الخرج"},{"p":"ب ح د 1817","m":"Isuzu","mo":"D-Max غمارة 3.0 ديزل","u":"سلة هوائية 14م","l":"الرياض"},{"p":"ب ح د 1985","m":"Isuzu","mo":"D-Max غمارتين 3.0 ديزل","u":"سيارة بكب 2 كابينة","l":"الرياض"},{"p":"ب ح د 1986","m":"Isuzu","mo":"D-Max غمارتين 3.0 ديزل","u":"سيارة بكب 2 كابينة","l":"الخرج"},{"p":"ب ح د 1987","m":"Isuzu","mo":"D-Max غمارتين 3.0 ديزل","u":"سيارة بكب 2 كابينة","l":"وادي الدواسر"},{"p":"ب ح ك 8011","m":"Mercedes-Benz","mo":"كرين","u":"ونش 10 طن","l":"الخرج"},{"p":"ب د س 3882","m":"Mercedes-Benz","mo":"أكتروس شاحنة ثقيلة","u":"ونش 8 طن","l":"وادي الدواسر"},{"p":"ب د ه 1219","m":"Isuzu","mo":"D-Max غمارتين 4WD 3.0 ديزل","u":"سيارة بكب 2 كابينة","l":"وادي الدواسر"},{"p":"ب ر س 1521","m":"Isuzu","mo":"D-Max غمارتين 3.0 ديزل","u":"سيارة بكب 2 كابينة","l":"الخرج"},{"p":"ب ر س 1522","m":"Isuzu","mo":"D-Max غمارتين 3.0 ديزل","u":"سيارة بكب 2 كابينة","l":"وادي الدواسر"},{"p":"ب س ر 2156","m":"Isuzu","mo":"D-Max غمارتين 3.0 ديزل","u":"سيارة بكب 2 كابينة","l":"الخرج"},{"p":"ب س ر 2634","m":"Isuzu","mo":"FVM سطحة","u":"سطحة","l":"وادي الدواسر"},{"p":"ب س س 986","m":"Mercedes-Benz","mo":"أكسور قلاب","u":"شاحنة قلاب نقل كبير","l":"الخرج"},{"p":"ب س ن 4364","m":"Toyota","mo":"هايس فان ركاب","u":"باص","l":"الرياض"},{"p":"ب ص أ 2735","m":"Isuzu","mo":"D-Max غمارتين 3.0 ديزل","u":"سيارة بكب 2 كابينة","l":"الرياض"},{"p":"ب ص أ 2736","m":"Isuzu","mo":"D-Max غمارتين 3.0 ديزل","u":"سيارة بكب 2 كابينة","l":"الرياض"},{"p":"ب ص ح 4275","m":"Nissan","mo":"كارافان NV350 ديزل","u":"باص","l":"الرياض"},{"p":"ب ص د 5326","m":"Isuzu","mo":"D-Max غمارتين 3.0 ديزل","u":"سيارة بكب 2 كابينة","l":"الرياض"},{"p":"ب ص د 5327","m":"Isuzu","mo":"D-Max غمارة 3.0 ديزل","u":"سيارة بكب 1 كابينة","l":"الرياض"},{"p":"ب ص د 5328","m":"Isuzu","mo":"D-Max غمارتين 3.0 ديزل","u":"سيارة بكب 2 كابينة","l":"الرياض"},{"p":"ب ص د 5329","m":"Isuzu","mo":"D-Max غمارة 3.0 ديزل","u":"سيارة بكب 1 كابينة","l":"الخرج"},{"p":"ب ص ر 5208","m":"Isuzu","mo":"D-Max غمارتين 3.0 ديزل","u":"سيارة بكب 2 كابينة","l":"الخرج"},{"p":"ب ص ر 5209","m":"Isuzu","mo":"D-Max غمارتين 3.0 ديزل","u":"سيارة بكب 2 كابينة","l":"الخرج"},{"p":"ب ص ر 5512","m":"Isuzu","mo":"D-Max غمارة 3.0 ديزل","u":"سيارة بكب 1 كابينة","l":"الأفلاج"},{"p":"ب ص ر 5513","m":"Isuzu","mo":"D-Max غمارة 3.0 ديزل","u":"سيارة بكب 1 كابينة","l":"الخرج"},{"p":"ب ص ر 5526","m":"Isuzu","mo":"D-Max غمارة 3.0 ديزل","u":"سيارة بكب 1 كابينة","l":"وادي الدواسر"},{"p":"ب ص س 1450","m":"Mercedes-Benz","mo":"سبرينتر فان","u":"باص","l":"الخرج"},{"p":"ب ص م 2351","m":"Isuzu","mo":"D-Max غمارتين 3.0 ديزل","u":"سيارة بكب 2 كابينة   4x4","l":"الخرج"},{"p":"ب ص م 9535","m":"Isuzu","mo":"D-Max بيك آب 3.0 ديزل","u":"سيارة بكب 2 كابينة","l":"الخرج"},{"p":"ب ص ي 3531","m":"Isuzu","mo":"FVZ شاحنة ثقيلة","u":"ونش 10 طن","l":"السليل"},{"p":"ب ص ي 5186","m":"Isuzu","mo":"D-Max غمارتين 3.0 ديزل","u":"سيارة بكب 2 كابينة","l":"وادي الدواسر"},{"p":"ب ص ي 5187","m":"Isuzu","mo":"D-Max غمارتين 3.0 ديزل","u":"سيارة بكب 2 كابينة","l":"الرياض"},{"p":"ب ص ي 5188","m":"Isuzu","mo":"D-Max غمارتين 3.0 ديزل","u":"سيارة بكب 2 كابينة","l":"الرياض"},{"p":"ب ص ي 5189","m":"Isuzu","mo":"D-Max غمارتين 3.0 ديزل","u":"سيارة بكب 2 كابينة","l":"الخرج"},{"p":"ب ص ي 5190","m":"Isuzu","mo":"D-Max غمارتين 3.0 ديزل","u":"سيارة بكب 2 كابينة","l":"الخرج"},{"p":"ب ط أ 4814","m":"Isuzu","mo":"D-Max غمارتين 3.0 ديزل","u":"سيارة بكب 2 كابينة   4x4","l":"الأفلاج"},{"p":"ب ط أ 4819","m":"Isuzu","mo":"D-Max غمارة 3.0 ديزل","u":"سيارة بكب 1 كابينة","l":"وادي الدواسر"},{"p":"ب ط أ 4884","m":"Isuzu","mo":"D-Max غمارتين 3.0 ديزل","u":"سيارة بكب 2 كابينة   4x4","l":"وادي الدواسر"},{"p":"ب ط أ 4889","m":"Isuzu","mo":"D-Max غمارة 3.0 ديزل","u":"سيارة بكب 1 كابينة","l":"وادي الدواسر"},{"p":"ب ط ر 2785","m":"Isuzu","mo":"D-Max غمارة 3.0 ديزل","u":"سيارة بكب 1 كابينة","l":"الخرج"},{"p":"ب ط ر 2786","m":"Isuzu","mo":"D-Max غمارتين 3.0 ديزل","u":"سيارة بكب 2 كابينة","l":"الرياض"},{"p":"ب ط ر 2787","m":"Isuzu","mo":"D-Max غمارتين 3.0 ديزل","u":"سيارة بكب 2 كابينة","l":"الخرج"},{"p":"ب ط ر 2788","m":"Isuzu","mo":"D-Max غمارتين 3.0 ديزل","u":"سيارة بكب 2 كابينة","l":"وادي الدواسر"},{"p":"ب ط ر 2789","m":"Isuzu","mo":"D-Max غمارتين 3.0 ديزل","u":"سيارة بكب 2 كابينة","l":"وادي الدواسر"},{"p":"ب ط ر 2790","m":"Isuzu","mo":"D-Max غمارة 3.0 ديزل","u":"سيارة بكب 1 كابينة","l":"الرياض"},{"p":"ب ط ر 2791","m":"Isuzu","mo":"D-Max غمارتين 3.0 ديزل","u":"سيارة بكب 2 كابينة","l":"الرياض"},{"p":"ب ط ر 2842","m":"Isuzu","mo":"D-Max غمارة 3.0 ديزل","u":"سيارة بكب 1 كابينة","l":"الرياض"},{"p":"ب ط ر 2843","m":"Isuzu","mo":"D-Max غمارة 3.0 ديزل","u":"سيارة بكب 1 كابينة","l":"الخرج"},{"p":"ب ط ر 2844","m":"Isuzu","mo":"D-Max غمارة 3.0 ديزل","u":"سيارة بكب 1 كابينة","l":"وادي الدواسر"},{"p":"ب ط ر 2846","m":"Isuzu","mo":"D-Max غمارة 3.0 ديزل","u":"سيارة بكب 1 كابينة","l":"الرياض"},{"p":"ب ط ر 2847","m":"Isuzu","mo":"D-Max غمارة 3.0 ديزل","u":"سيارة بكب 1 كابينة","l":"الرياض"},{"p":"ب ط ر 2848","m":"Isuzu","mo":"D-Max غمارة 3.0 ديزل","u":"سيارة بكب 1 كابينة","l":"وادي الدواسر"},{"p":"ب ط ر 2849","m":"Isuzu","mo":"D-Max غمارة 3.0 ديزل","u":"سيارة بكب 1 كابينة","l":"وادي الدواسر"},{"p":"ب ط ن 7332","m":"Isuzu","mo":"D-Max غمارتين 3.0 ديزل","u":"سيارة بكب 2 كابينة","l":"وادي الدواسر"},{"p":"ب ع ح 3966","m":"Isuzu","mo":"D-Max غمارتين 3.0 ديزل","u":"سيارة بكب 2 كابينة","l":"الأفلاج"},{"p":"ب ع ح 3967","m":"Isuzu","mo":"D-Max غمارتين 3.0 ديزل","u":"سيارة بكب 2 كابينة","l":"الأفلاج"},{"p":"ب ع ح 3968","m":"Isuzu","mo":"D-Max غمارتين 3.0 ديزل","u":"سيارة بكب 2 كابينة","l":"الأفلاج"},{"p":"ب ع ح 3969","m":"Isuzu","mo":"D-Max غمارتين 3.0 ديزل","u":"سيارة بكب 2 كابينة","l":"الأفلاج"},{"p":"ب ع ن 1157","m":"Isuzu","mo":"D-Max غمارة 3.0 ديزل","u":"سيارة بكب 1 كابينة","l":"الأفلاج"},{"p":"ب ع ن 1158","m":"Isuzu","mo":"D-Max غمارة 3.0 ديزل","u":"سيارة بكب 1 كابينة","l":"الأفلاج"},{"p":"ح د س 9483","m":"Hyundai","mo":"أكسنت 1.4 بنزين","u":"سيارة اكسنت","l":"الخرج"},{"p":"ح ع هـ 2239","m":"Hyundai","mo":"أكسنت 1.4 بنزين","u":"سيارة اكسنت","l":"الرياض"},{"p":"ح ع هـ 2848","m":"Hyundai","mo":"أكسنت 1.4 بنزين","u":"سيارة اكسنت","l":"وادي الدواسر"},{"p":"ح ل ن 4583","m":"Hyundai","mo":"أكسنت 1.4 بنزين","u":"سيارة اكسنت","l":"الرياض"},{"p":"ح ه ط 1721","m":"Hyundai","mo":"أكسنت 1.4 بنزين","u":"سيارة اكسنت","l":"الخرج"},{"p":"ح ي هـ 8164","m":"Hyundai","mo":"إلنترا 1.6 بنزين","u":"سيارة  النترا","l":"الخرج"},{"p":"د ح ح 9773","m":"Isuzu","mo":"MU-X 3.0 ديزل","u":"سيارة ام يو اكس","l":"الخرج"},{"p":"د ح ح 9774","m":"Isuzu","mo":"MU-X 3.0 ديزل","u":"سيارة ام يو اكس","l":"الرياض"},{"p":"د ح ح 9775","m":"Isuzu","mo":"MU-X 3.0 ديزل","u":"سيارة ام يو اكس","l":"الرياض"},{"p":"د ح ح 9776","m":"Isuzu","mo":"MU-X 3.0 ديزل","u":"سيارة ام يو اكس","l":"الرياض"},{"p":"د ح ح 9778","m":"Isuzu","mo":"MU-X 3.0 ديزل","u":"سيارة ام يو اكس","l":"الرياض"},{"p":"د ر ص 5515","m":"Toyota","mo":"فورتشنر 2.8 ديزل 4WD","u":"سيارة فورشنر","l":"الخرج"},{"p":"د ل ك 8567","m":"Isuzu","mo":"MU-X 3.0 ديزل","u":"سيارة ام يو اكس","l":"الخرج"},{"p":"ر ح ر 6851","m":"Toyota","mo":"فورتشنر 2.8 ديزل 4WD","u":"سيارة فورشنر","l":"وادي الدواسر"},{"p":"ر د د 1440","m":"Toyota","mo":"تويوتا كورولا","u":"سيارة  كرولا","l":"الرياض"},{"p":"ر د د 1442","m":"Toyota","mo":"تويوتا كورولا","u":"سيارة  كرولا","l":"الرياض"},{"p":"ر د د 1750","m":"Toyota","mo":"تويوتا كورولا","u":"سيارة  كرولا","l":"الرياض"},{"p":"ر ر ع 2490","m":"Kia","mo":"بيجاس 1.4 بنزين","u":"سيارة بيجاس","l":"الرياض"},{"p":"ر ر ع 2491","m":"Kia","mo":"بيجاس 1.4 بنزين","u":"سيارة بيجاس","l":"الخرج"},{"p":"ر ر ع 2492","m":"Kia","mo":"بيجاس 1.4 بنزين","u":"سيارة بيجاس","l":"الرياض"},{"p":"ر ر ع 2493","m":"Kia","mo":"بيجاس 1.4 بنزين","u":"سيارة بيجاس","l":"الرياض"},{"p":"ر ر ع 2494","m":"Kia","mo":"بيجاس 1.4 بنزين","u":"سيارة بيجاس","l":"الرياض"},{"p":"ر س ق 7744","m":"Kia","mo":"بيجاس 1.4 بنزين","u":"سيارة بيجاس","l":"وادي الدواسر"},{"p":"ر س ك 9015","m":"Kia","mo":"بيجاس 1.4 بنزين","u":"سيارة بيجاس","l":"الخرج"},{"p":"ر س ك 9092","m":"Kia","mo":"بيجاس 1.4 بنزين","u":"سيارة بيجاس","l":"الرياض"},{"p":"ر ص ح 3322","m":"Kia","mo":"بيجاس 1.4 بنزين","u":"سيارة بيجاس","l":"الخرج"},{"p":"ر ص ع 3344","m":"Kia","mo":"بيجاس 1.4 بنزين","u":"سيارة بيجاس","l":"الخرج"},{"p":"ر ص ع 3377","m":"Kia","mo":"بيجاس 1.4 بنزين","u":"سيارة بيجاس","l":"الخرج"},{"p":"ر ص ك 1061","m":"Kia","mo":"بيجاس 1.4 بنزين","u":"سيارة بيجاس","l":"الخرج"},{"p":"ر ص ك 1062","m":"Kia","mo":"بيجاس 1.4 بنزين","u":"سيارة بيجاس","l":"الخرج"},{"p":"ر ع ق 5412","m":"Isuzu","mo":"MU-X 3.0 ديزل","u":"سيارة ام يو اكس","l":"الأفلاج"},{"p":"ر و ك 5284","m":"Toyota","mo":"فورتشنر 2.8 ديزل 4WD","u":"سيارة فورتشنر","l":"الأفلاج"},{"p":"1862 س د ح","m":"","mo":"","u":"سيارة بيجاس","l":"الخرج"},{"p":"أ أ أ 6027","m":"Caterpillar","mo":"رافعة شوكية","u":"رافعة شوكية","l":"الخرج"},{"p":"أ أ د 4033","m":"Mercedes-Benz","mo":"أكسور وايت مياه","u":"وايت مياه","l":"وادي الدواسر"},{"p":"أ أ ر 6392","m":"Caterpillar","mo":"مدحلة مزدوجة كتربلر CB18","u":"رصاصة اسفلت صغير","l":"وادي الدواسر"},{"p":"أ أ ق 8794","m":"Caterpillar","mo":"شيول دوار كتربلر 262D","u":"حفار للحفريات الدقيقة ( ترنشر )","l":"الرياض"},{"p":"أ أ ق 8800","m":"Caterpillar","mo":"شيول دوار كتربلر 262D","u":"حفار للحفريات الدقيقة ( ترنشر )","l":"الخرج"},{"p":"أ أ ك 6248","m":"Caterpillar","mo":"شيول دوار كتربلر 216B3","u":"شيول صغير بوبكات بكت","l":"الخرج"},{"p":"أ أ ك 6405","m":"Caterpillar","mo":"شيول دوار كتربلر 216B3","u":"شيول صغير بوبكات بكت","l":"الرياض"},{"p":"أ أ ك 6406","m":"Caterpillar","mo":"شيول دوار كتربلر 216B3","u":"شيول صغير بوبكات بكت","l":"الرياض"},{"p":"أ أ ك 6410","m":"Caterpillar","mo":"شيول دوار كتربلر 216B3","u":"شيول صغير بوبكات بكت","l":"الرياض"},{"p":"أ أ ك 6414","m":"Caterpillar","mo":"شيول دوار كتربلر 216B3","u":"شيول صغير بوبكات بكت","l":"الخرج"},{"p":"أ أ ك 6416","m":"Caterpillar","mo":"شيول دوار كتربلر 216B3","u":"شيول صغير بوبكات بكت","l":"الرياض"},{"p":"أ أ ك 9365","m":"Caterpillar","mo":"شيول دوار كتربلر 262D","u":"حفار للحفريات الدقيقة ( ترنشر )","l":"وادي الدواسر"},{"p":"أ أ ك 9370","m":"Caterpillar","mo":"شيول دوار كتربلر 216B3","u":"شيول صغير بوبكات بكت","l":"الرياض"},{"p":"أ أ ك 9372","m":"Caterpillar","mo":"شيول دوار كتربلر 262D","u":"حفار للحفريات الدقيقة ( ترنشر )","l":"الرياض"},{"p":"أ أ ك 9373","m":"Caterpillar","mo":"شيول دوار كتربلر 262D","u":"حفار للحفريات الدقيقة ( ترنشر )","l":"الرياض"},{"p":"أ أ ك 9374","m":"Caterpillar","mo":"شيول دوار كتربلر 262D","u":"حفار للحفريات الدقيقة ( ترنشر )","l":"الرياض"},{"p":"أ أ ك 9376","m":"Caterpillar","mo":"شيول دوار كتربلر 216B3","u":"شيول صغير بوبكات بكت","l":"الرياض"},{"p":"أ أ ل 9380","m":"JCB","mo":"شيول دوار JCB 135W","u":"شيول صغير بوبكات بكت","l":"الرياض"},{"p":"أ أ ل 9381","m":"JCB","mo":"شيول دوار JCB 135W","u":"شيول صغير بوبكات بكت","l":"الرياض"},{"p":"أ أ ل 9382","m":"JCB","mo":"شيول دوار JCB 135W","u":"شيول صغير بوبكات بكت","l":"الخرج"},{"p":"أ أ ل 9383","m":"JCB","mo":"شيول دوار JCB 135W","u":"شيول صغير بوبكات بكت","l":"الرياض"},{"p":"أ أ ل 9392","m":"JCB","mo":"شيول دوار JCB 135W","u":"شيول صغير بوبكات بكت","l":"الرياض"},{"p":"أ أ ل 9395","m":"JCB","mo":"شيول دوار JCB 135W","u":"شيول صغير بوبكات بكت","l":"الرياض"},{"p":"أ أ ل 9396","m":"JCB","mo":"شيول دوار JCB 135W","u":"شيول صغير بوبكات بكت","l":"الرياض"},{"p":"أ أ ل 9397","m":"JCB","mo":"شيول دوار JCB 135W","u":"شيول صغير بوبكات بكت","l":"الخرج"},{"p":"أ أ ل 9398","m":"JCB","mo":"شيول دوار JCB 135W","u":"شيول صغير بوبكات بكت","l":"الرياض"},{"p":"أ أ ل 9399","m":"JCB","mo":"شيول دوار JCB 135W","u":"شيول صغير بوبكات بكت","l":"الخرج"},{"p":"أ أ ل 9400","m":"JCB","mo":"شيول دوار JCB 135W","u":"شيول صغير بوبكات بكت","l":"الخرج"},{"p":"أ أ م 2537","m":"Bobcat","mo":"حفار بواجهتين بوبكات","u":"حفار باك هول","l":"الرياض"},{"p":"أ أ م 2538","m":"Bobcat","mo":"حفار مدمج بوبكات E","u":"شيول صغير بوبكات بكت","l":"الرياض"},{"p":"أ أ م 2597","m":"Bobcat","mo":"حفار مدمج بوبكات E","u":"شيول صغير بوبكات بكت","l":"الخرج"},{"p":"أ أ م 2659","m":"Bobcat","mo":"حفار مدمج بوبكات E","u":"شيول صغير بوبكات بكت","l":"الرياض"},{"p":"أ أ م 2783","m":"Bobcat","mo":"حفار مدمج بوبكات E","u":"شيول صغير بوبكات بكت","l":"الرياض"},{"p":"أ أ م 2785","m":"Bobcat","mo":"حفار مدمج بوبكات E","u":"شيول صغير بوبكات بكت","l":"الخرج"},{"p":"أ أ م 2898","m":"Bobcat","mo":"حفار مدمج بوبكات E","u":"شيول صغير بوبكات بكت","l":"الرياض"},{"p":"أ أ م 2910","m":"Bobcat","mo":"حفار مدمج بوبكات E","u":"شيول صغير بوبكات بكت","l":"الرياض"},{"p":"أ أ م 7968","m":"Bobcat","mo":"حفار مدمج بوبكات E","u":"شيول صغير بوبكات بكت","l":"الرياض"},{"p":"أ أ ن 3152","m":"Caterpillar","mo":"شيول دوار كتربلر 262D","u":"حفار للحفريات الدقيقة ( ترنشر )","l":"الحريق"},{"p":"أ أ ن 3153","m":"Caterpillar","mo":"شيول دوار كتربلر 262D","u":"حفار للحفريات الدقيقة ( ترنشر )","l":"الخرج"},{"p":"أ أ ن 3155","m":"JCB","mo":"حفار بواجهتين JCB 3CX","u":"حفار باك هول","l":"الرياض"},{"p":"أ أ ن 3156","m":"JCB","mo":"حفار بواجهتين JCB 3CX","u":"حفار باك هول","l":"الخرج"},{"p":"أ أ ن 3157","m":"JCB","mo":"حفار بواجهتين JCB 3CX","u":"حفار باك هول","l":"الرياض"},{"p":"أ أ ن 3158","m":"JCB","mo":"حفار بواجهتين JCB 3CX","u":"حفار باك هول","l":"الخرج"},{"p":"أ أ ن 3159","m":"JCB","mo":"حفار بواجهتين JCB 3CX","u":"حفار باك هول","l":"الخرج"},{"p":"أ أ ن 3160","m":"JCB","mo":"حفار بواجهتين JCB 3CX","u":"حفار باك هول","l":"الرياض"},{"p":"أ أ ن 3161","m":"JCB","mo":"حفار بواجهتين JCB 3CX","u":"حفار باك هول","l":"الرياض"},{"p":"أ أ ن 3242","m":"JCB","mo":"حفار بواجهتين JCB 3CX","u":"حفار باك هول","l":"الخرج"},{"p":"أ أ ن 3243","m":"JCB","mo":"حفار بواجهتين JCB 3CX","u":"حفار باك هول","l":"الخرج"},{"p":"أ أ ن 3245","m":"JCB","mo":"حفار بواجهتين JCB 3CX","u":"حفار باك هول","l":"الرياض"},{"p":"أ أ ن 3803","m":"JCB","mo":"حفار بواجهتين JCB 3CX","u":"حفار باك هول","l":"الخرج"},{"p":"أ أ ن 3804","m":"JCB","mo":"حفار بواجهتين JCB 3CX","u":"حفار باك هول","l":"الخرج"},{"p":"أ أ ي 1278","m":"JCB","mo":"حفار بواجهتين JCB 3CX","u":"حفار باك هول","l":"الخرج"},{"p":"أ أ ي 1339","m":"JCB","mo":"حفار بواجهتين JCB 3CX","u":"حفار باك هول","l":""},{"p":"أ أ ي 1378","m":"JCB","mo":"حفار بواجهتين JCB 3CX","u":"حفار باك هول","l":""},{"p":"أ أق 8806","m":"Caterpillar","mo":"شيول دوار كتربلر 216B3","u":"شيول صغير بوبكات بكت","l":"وادي الدواسر"},{"p":"أ أق 8844","m":"Caterpillar","mo":"شيول دوار كتربلر 216B3","u":"شيول صغير بوبكات بكت","l":"الرياض"},{"p":"أ أق 8849","m":"Caterpillar","mo":"شيول دوار كتربلر 216B3","u":"شيول صغير بوبكات بكت","l":"الرياض"},{"p":"أ أق 8850","m":"Caterpillar","mo":"شيول دوار كتربلر 216B3","u":"شيول صغير بوبكات بكت","l":"الرياض"},{"p":"أ أم 3355","m":"Caterpillar","mo":"شيول دوار كتربلر 262D","u":"حفار للحفريات الدقيقة ( ترنشر )","l":"الرياض"},{"p":"أ أم 3356","m":"Caterpillar","mo":"شيول دوار كتربلر 262D","u":"حفار للحفريات الدقيقة ( ترنشر )","l":"الخرج"},{"p":"أ أم 3437","m":"Caterpillar","mo":"شيول دوار كتربلر 262D","u":"حفار للحفريات الدقيقة ( ترنشر )","l":"الرياض"},{"p":"أ أي 2550","m":"Caterpillar","mo":"شيول دوار كتربلر 262D","u":"حفار للحفريات الدقيقة ( ترنشر )","l":"الخرج"},{"p":"أ ص ح 7989","m":"Sany","mo":"شاحنة ثقيلة ساني","u":"شاحنة قلاب نقل كبير","l":"وادي الدواسر"},{"p":"أ ص ط 2058","m":"Isuzu","mo":"كرين","u":"ونش 7.5 طن","l":"الرياض"},{"p":"أ ص ط 2060","m":"Isuzu","mo":"FRR شاحنة متوسطة","u":"سطحة","l":"الخرج"},{"p":"أ ص ط 2061","m":"Isuzu","mo":"كرين","u":"ونش 7.5 طن","l":"الرياض"},{"p":"أ ك س 6176","m":"Mercedes-Benz","mo":"أتيجو شاحنة متوسطة","u":"حفار أعمدة Digger","l":"السليل"},{"p":"ب ط أ 4810","m":"Isuzu","mo":"D-Max غمارتين 3.0 ديزل","u":"سيارة بكب 2 كابينة","l":"الرياض"},{"p":"ب ط أ 4811","m":"Isuzu","mo":"D-Max غمارتين 3.0 ديزل","u":"سيارة بكب 2 كابينة","l":"الخرج"},{"p":"ب ط أ 4812","m":"Isuzu","mo":"D-Max غمارتين 3.0 ديزل","u":"سيارة بكب 2 كابينة","l":"الرياض"},{"p":"ب ط أ 4813","m":"Isuzu","mo":"D-Max غمارتين 3.0 ديزل","u":"سيارة بكب 2 كابينة   4x4","l":"وادي الدواسر"},{"p":"ب ط أ 4815","m":"Isuzu","mo":"D-Max غمارتين 3.0 ديزل","u":"سيارة بكب 2 كابينة","l":"الخرج"},{"p":"ب ط أ 4816","m":"Isuzu","mo":"D-Max غمارتين 3.0 ديزل","u":"سيارة بكب 2 كابينة","l":"الخرج"},{"p":"ب ط أ 4817","m":"Isuzu","mo":"D-Max غمارة 3.0 ديزل","u":"سيارة بكب 1 كابينة","l":"الرياض"},{"p":"ب ط أ 4818","m":"Isuzu","mo":"D-Max غمارة 3.0 ديزل","u":"سيارة بكب 1 كابينة","l":"الرياض"},{"p":"ب ط أ 4820","m":"Isuzu","mo":"D-Max غمارة 3.0 ديزل","u":"سيارة بكب 1 كابينة","l":"الرياض"},{"p":"ب ط أ 4878","m":"Isuzu","mo":"D-Max غمارتين 3.0 ديزل","u":"سيارة بكب 2 كابينة","l":"الخرج"},{"p":"ب ط أ 4879","m":"Isuzu","mo":"D-Max غمارتين 3.0 ديزل","u":"سيارة بكب 2 كابينة","l":"الخرج"},{"p":"ب ط أ 4880","m":"Isuzu","mo":"D-Max غمارتين 3.0 ديزل","u":"سيارة بكب 2 كابينة","l":"الخرج"},{"p":"ب ط أ 4881","m":"Isuzu","mo":"D-Max غمارتين 3.0 ديزل","u":"سيارة بكب 2 كابينة","l":"وادي"},{"p":"ب ط أ 4882","m":"Isuzu","mo":"D-Max غمارتين 3.0 ديزل","u":"سيارة بكب 2 كابينة","l":"الخرج"},{"p":"ب ط أ 4883","m":"Isuzu","mo":"D-Max غمارتين 3.0 ديزل","u":"سيارة بكب 2 كابينة","l":"الخرج"},{"p":"ب ط أ 4885","m":"Isuzu","mo":"D-Max غمارتين 3.0 ديزل","u":"سيارة بكب 2 كابينة   4x4","l":"الخرج"},{"p":"ب ط أ 4886","m":"Isuzu","mo":"D-Max غمارة 3.0 ديزل","u":"سيارة بكب 1 كابينة","l":"الخرج"},{"p":"ب ط أ 4887","m":"Isuzu","mo":"D-Max غمارة 3.0 ديزل","u":"سيارة بكب 1 كابينة","l":"الخرج"},{"p":"ب ط أ 4890","m":"Isuzu","mo":"D-Max غمارة 3.0 ديزل","u":"سيارة بكب 1 كابينة","l":"الخرج"},{"p":"ب ط س 1193","m":"Toyota","mo":"هايس فان ركاب","u":"باص","l":"الرياض"},{"p":"ب ط س 1195","m":"Toyota","mo":"هايس فان ركاب","u":"باص","l":"الرياض"},{"p":"ب ط ق 6700","m":"Isuzu","mo":"D-Max 4×4 3.0 ديزل","u":"سيارة بكب 2 كابينة   4x4","l":"الخرج"},{"p":"ب ط ن 5786","m":"Toyota","mo":"هايس فان ركاب","u":"باص","l":"الرياض"},{"p":"ب ط ن 7329","m":"Isuzu","mo":"D-Max غمارتين 3.0 ديزل","u":"سيارة بكب 2 كابينة","l":"الرياض"},{"p":"ب ط ن 7330","m":"Isuzu","mo":"D-Max غمارتين 3.0 ديزل","u":"سيارة بكب 2 كابينة","l":"الرياض"},{"p":"ب ط ن 7331","m":"Isuzu","mo":"D-Max غمارتين 3.0 ديزل","u":"سيارة بكب 2 كابينة","l":"الرياض"},{"p":"ب ع ن 1151","m":"Isuzu","mo":"D-Max غمارة 3.0 ديزل","u":"سيارة بكب 1 كابينة","l":"الرياض"},{"p":"ب ع ن 1152","m":"Isuzu","mo":"D-Max غمارة 3.0 ديزل","u":"سيارة بكب 1 كابينة","l":"الرياض"},{"p":"ب ع ن 1153","m":"Isuzu","mo":"D-Max غمارة 3.0 ديزل","u":"سيارة بكب 1 كابينة","l":"الرياض"},{"p":"ب ع ن 1154","m":"Isuzu","mo":"D-Max غمارة 3.0 ديزل","u":"سيارة بكب 1 كابينة","l":"الرياض"},{"p":"ب ع و 2558","m":"Toyota","mo":"هايس فان ركاب","u":"باص","l":"الأفلاج"},{"p":"ب ع ي 3816","m":"Isuzu","mo":"D-Max غمارتين 3.0 ديزل","u":"سيارة بكب 2 كابينة","l":"الخرج"},{"p":"ب ع ي 3817","m":"Isuzu","mo":"D-Max غمارتين 3.0 ديزل","u":"سيارة بكب 2 كابينة","l":"الرياض"},{"p":"ب ع ي 3818","m":"Isuzu","mo":"D-Max غمارتين 3.0 ديزل","u":"سيارة بكب 2 كابينة","l":"الرياض"},{"p":"ب ع ي 3819","m":"Isuzu","mo":"D-Max غمارتين 3.0 ديزل","u":"سيارة بكب 2 كابينة","l":"الرياض"},{"p":"ب ع ي 3820","m":"Isuzu","mo":"D-Max غمارتين 3.0 ديزل","u":"سيارة بكب 2 كابينة","l":"الرياض"},{"p":"ب ق س 1295","m":"Isuzu","mo":"D-Max غمارتين 3.0 ديزل","u":"سيارة بكب 2 كابينة","l":"الأفلاج"},{"p":"ب ق س 1296","m":"Isuzu","mo":"D-Max غمارة 3.0 ديزل","u":"سيارة بكب 1 كابينة","l":"الرياض"},{"p":"ب ق س 1297","m":"Isuzu","mo":"D-Max غمارة 3.0 ديزل","u":"سيارة بكب 1 كابينة","l":"الرياض"},{"p":"ب ق س 1298","m":"Isuzu","mo":"D-Max غمارة 3.0 ديزل","u":"سيارة بكب 1 كابينة","l":"الرياض"},{"p":"ب ق س 1299","m":"Isuzu","mo":"D-Max غمارة 3.0 ديزل","u":"سيارة بكب 1 كابينة","l":"الرياض"},{"p":"ح م ق 2444","m":"Toyota","mo":"فورتشنر 2.7 بنزين","u":"سيارة فورتشنر","l":""},{"p":"ح ي د 8358","m":"Hyundai","mo":"أكسنت 1.4 بنزين","u":"سيارة اكسنت","l":"وادي الدواسر"},{"p":"د ح ن 4798","m":"Hyundai","mo":"أكسنت 1.4 بنزين","u":"سيارة اكسنت","l":"الرياض"},{"p":"ر ع أ 6046","m":"Toyota","mo":"فورتشنر 2.8 ديزل 4WD","u":"سيارة فورشنر","l":"الخرج"},{"p":"ر ع ر 3849","m":"Kia","mo":"بيجاس 1.4 بنزين","u":"سيارة بيجاس","l":"الخرج"},{"p":"ر ع ر 3850","m":"Kia","mo":"بيجاس 1.4 بنزين","u":"سيارة بيجاس","l":"الخرج"},{"p":"ر ع ر 3851","m":"Kia","mo":"بيجاس 1.4 بنزين","u":"سيارة بيجاس","l":"الخرج"},{"p":"ر ع ر 3852","m":"Kia","mo":"بيجاس 1.4 بنزين","u":"سيارة بيجاس","l":"الخرج"},{"p":"ر ع ر3848","m":"Kia","mo":"بيجاس 1.4 بنزين","u":"سيارة بيجاس","l":"وادي الدواسر"},{"p":"ر ق ي 2199","m":"Kia","mo":"بيجاس 1.4 بنزين","u":"سيارة بيجاس","l":"وادي الدواسر"},{"p":"ر ل س 9255","m":"Kia","mo":"بيجاس 1.4 بنزين","u":"سيارة بيجاس","l":"الرياض"},{"p":"ر ل س 9256","m":"Kia","mo":"بيجاس 1.4 بنزين","u":"سيارة بيجاس","l":"الرياض"},{"p":"ر ل س 9258","m":"Kia","mo":"بيجاس 1.4 بنزين","u":"سيارة بيجاس","l":"وادي الدواسر"},{"p":"ر م م 2049","m":"Isuzu","mo":"MU-X 3.0 ديزل","u":"سيارة ام يو اكس","l":"الرياض"},{"p":"ر م م 2050","m":"Isuzu","mo":"MU-X 3.0 ديزل","u":"سيارة ام يو اكس","l":"الرياض"},{"p":"ر م م 2054","m":"Isuzu","mo":"MU-X 3.0 ديزل","u":"سيارة ام يو اكس","l":"الرياض"},{"p":"ر م م 2056","m":"Isuzu","mo":"MU-X 3.0 ديزل","u":"سيارة ام يو اكس","l":"الخرج"},{"p":"ر م م 2057","m":"Isuzu","mo":"MU-X 3.0 ديزل","u":"سيارة ام يو اكس","l":"الخرج"},{"p":"ر م م 2058","m":"Isuzu","mo":"MU-X 3.0 ديزل","u":"سيارة ام يو اكس","l":"الخرج"},{"p":"ر م م 2059","m":"Isuzu","mo":"MU-X 3.0 ديزل","u":"سيارة ام يو اكس","l":"الخرج"},{"p":"ر م م 2061","m":"Isuzu","mo":"MU-X 3.0 ديزل","u":"سيارة ام يو اكس","l":"الرياض"},{"p":"ر م م 2062","m":"Isuzu","mo":"MU-X 3.0 ديزل","u":"سيارة ام يو اكس","l":"الرياض"},{"p":"ر م م 2063","m":"Isuzu","mo":"MU-X 3.0 ديزل","u":"سيارة ام يو اكس","l":"الرياض"},{"p":"ر ن ه 5982","m":"Kia","mo":"بيجاس 1.4 بنزين","u":"سيارة بيجاس","l":"الخرج"},{"p":"ر ن ه 5983","m":"Kia","mo":"بيجاس 1.4 بنزين","u":"سيارة بيجاس","l":"الخرج"},{"p":"ر ن ه 5984","m":"Kia","mo":"بيجاس 1.4 بنزين","u":"سيارة بيجاس","l":"وادي الدواسر"},{"p":"ر ن ه 5985","m":"Kia","mo":"بيجاس 1.4 بنزين","u":"سيارة بيجاس","l":"الرياض"},{"p":"ر ن ه 5986","m":"Kia","mo":"بيجاس 1.4 بنزين","u":"سيارة بيجاس","l":"الرياض"},{"p":"ر و ع 9451","m":"Toyota","mo":"تويوتا RAV4","u":"سيارة  RAV 4","l":"الخرج"},{"p":"ر و ع 9452","m":"Toyota","mo":"تويوتا RAV4","u":"سيارة  RAV 4","l":"الخرج"},{"p":"ر و ع 9453","m":"Toyota","mo":"تويوتا RAV4","u":"سيارة  RAV 4","l":"الخرج"},{"p":"ر و ع 9461","m":"Toyota","mo":"تويوتا RAV4","u":"سيارة  RAV 4","l":"الرياض"},{"p":"ر و ع 9462","m":"Toyota","mo":"تويوتا RAV4","u":"سيارة  RAV 4","l":"الخرج"},{"p":"ر و ك 5285","m":"Toyota","mo":"فورتشنر 2.8 ديزل 4WD","u":"سيارة فورشنر","l":"الرياض"},{"p":"س أ أ 5359","m":"Kia","mo":"بيجاس 1.4 بنزين","u":"سيارة بيجاس","l":"الرياض"},{"p":"س أ أ 5360","m":"Kia","mo":"بيجاس 1.4 بنزين","u":"سيارة بيجاس","l":"الرياض"},{"p":"س أ أ 5361","m":"Kia","mo":"بيجاس 1.4 بنزين","u":"سيارة بيجاس","l":"الرياض"},{"p":"س أ أ 5362","m":"Kia","mo":"بيجاس 1.4 بنزين","u":"سيارة بيجاس","l":"وادي الدواسر"},{"p":"س أ أ 5365","m":"Kia","mo":"بيجاس 1.4 بنزين","u":"سيارة بيجاس","l":"الرياض"},{"p":"س دح 1863","m":"Kia","mo":"بيجاس 1.4 بنزين","u":"سيارة بيجاس","l":"الخرج"},{"p":"س دح 1864","m":"Kia","mo":"بيجاس 1.4 بنزين","u":"سيارة بيجاس","l":"الرياض"},{"p":"ع د ب 600","m":"Kia","mo":"بيجاس 1.4 بنزين","u":"سيارة بيجاس","l":"الرياض"},{"p":"ع ع ل 700","m":"Chevrolet","mo":"تاهو 5.3 V8 4WD","u":"سيارة تاهو","l":"الخرج"},{"p":"1753 ب ح د","m":"","mo":"","u":"ايسوزو","l":"الخرج"},{"p":"2115","m":"","mo":"","u":"سيارة بيجاس","l":""},{"p":"2199","m":"","mo":"","u":"سيارة بيجاس","l":""},{"p":"4548 ز ن ص","m":"","mo":"","u":"سيارة اكسنت","l":"الخرج"},{"p":"6102 أ ص ح","m":"","mo":"","u":"قلاب دينا صغير","l":"الخرج"},{"p":"9633 د ح ي","m":"","mo":"","u":"FLEX","l":"الخرج"},{"p":"أ أ ي 1108","m":"JCB","mo":"حفار بواجهتين JCB 3CX","u":"حفار باك هول","l":"الرياض"},{"p":"أ أ ي 1280","m":"JCB","mo":"حفار بواجهتين JCB 3CX","u":"حفار باك هول","l":""},{"p":"أ أي 2250","m":"","mo":"","u":"حفار للحفريات الدقيقة ( ترنشر )","l":"الخرج"},{"p":"أ ط ح 9792","m":"Isuzu","mo":"FRR شاحنة متوسطة","u":"ايسوزو","l":"الرياض"},{"p":"ب ح د 1753","m":"","mo":"","u":"سيارة بكب 2 كابينة","l":"الخرج"},{"p":"ح ق ر 7147","m":"","mo":"تويوتا جيب فورتشنر","u":"سيارة فورتشنر","l":""},{"p":"س أ ه 5074","m":"Isuzu","mo":"MU-X 3.0 ديزل","u":"ايسوزو","l":"وادي الدواسر"},{"p":"س أ ه 5075","m":"Isuzu","mo":"MU-X 3.0 ديزل","u":"ايسوزو","l":"الرياض"},{"p":"س أ ه 5076","m":"Isuzu","mo":"MU-X 3.0 ديزل 4WD","u":"ايسوزو","l":"الرياض"},{"p":"أ ص ح 6473","m":"متسوبيشي","mo":"فوزو","u":"أخرى","l":""},{"p":"أ أ ي 2550","m":"كتربلر","mo":"معده","u":"أخرى","l":""},{"p":"ب ح د 1879","m":"ايسوزو","mo":"قلاب","u":"أخرى","l":""},{"p":"ب ح د 1671","m":"ايسوزو","mo":"قلاب","u":"أخرى","l":""},{"p":"أ أ م 3356","m":"كتربلر","mo":"معده","u":"أخرى","l":""},{"p":"ب ص ي 5184","m":"ايسوزو","mo":"شاحنه","u":"أخرى","l":""},{"p":"أ أ م 3437","m":"كتربلر","mo":"معده","u":"أخرى","l":""},{"p":"أ أ م 3369","m":"كتربلر","mo":"معده","u":"أخرى","l":""},{"p":"ب د ك 1201","m":"ايسوزو","mo":"قلاب","u":"أخرى","l":""},{"p":"أ ص ح 6472","m":"ايسوزو","mo":"شاحنه","u":"أخرى","l":""},{"p":"أ س س 4416","m":"مرسيدس","mo":"راس تريلا","u":"أخرى","l":""}];
+var RM={"سيارة بكب 1 كابينة":{"u":"km","lo":9.0,"hi":14.0,"t":11.5},"سيارة بكب 2 كابينة":{"u":"km","lo":9.0,"hi":14.0,"t":11.5},"سيارة بكب 2 كابينة   4x4":{"u":"km","lo":8.5,"hi":13.0,"t":10.5},"سيارة ام يو اكس":{"u":"km","lo":9.0,"hi":13.0,"t":11.0},"قلاب دينا صغير":{"u":"km","lo":9.0,"hi":16.0,"t":11.0},"ديانا 1 كابينة صبدوق":{"u":"km","lo":9.0,"hi":16.0,"t":11.0},"ديانا 2 كابينة":{"u":"km","lo":9.0,"hi":16.0,"t":11.0},"ايسوزو":{"u":"km","lo":9.0,"hi":16.0,"t":11.0},"سيارة بيجاس":{"u":"km","lo":14.0,"hi":18.0,"t":16.0},"سيارة اكسنت":{"u":"km","lo":13.0,"hi":17.0,"t":15.0},"سيارة  النترا":{"u":"km","lo":13.0,"hi":17.0,"t":15.0},"سيارة  كرولا":{"u":"km","lo":13.0,"hi":17.0,"t":15.0},"سيارة  RAV 4":{"u":"km","lo":9.0,"hi":13.0,"t":11.0},"سيارة فورتشنر":{"u":"km","lo":7.0,"hi":13.0,"t":9.5},"سيارة فورشنر":{"u":"km","lo":7.0,"hi":13.0,"t":9.5},"سيارة تاهو":{"u":"km","lo":5.5,"hi":7.5,"t":6.5},"باص":{"u":"km","lo":5.5,"hi":8.5,"t":7.0},"سطحة":{"u":"km","lo":4.5,"hi":7.5,"t":6.0},"سلة هوائية 12 م":{"u":"km","lo":3.5,"hi":6.0,"t":4.5},"سلة هوائية 14م":{"u":"km","lo":3.5,"hi":6.0,"t":4.5},"ونش 7.5 طن":{"u":"km","lo":3.5,"hi":6.0,"t":4.5},"ونش 8 طن":{"u":"km","lo":3.5,"hi":6.0,"t":4.5},"ونش 10 طن":{"u":"km","lo":3.0,"hi":5.0,"t":4.0},"ونش 21 طن":{"u":"km","lo":2.5,"hi":4.0,"t":3.2},"شاحنة قلاب نقل كبير":{"u":"km","lo":2.8,"hi":4.0,"t":3.3},"سيارة نقل مواد (تريلا) اكثر من 10 طن":{"u":"km","lo":2.8,"hi":4.0,"t":3.3},"وايت مياه":{"u":"km","lo":3.0,"hi":4.5,"t":3.7},"خلاطة اسمنت":{"u":"km","lo":2.5,"hi":4.0,"t":3.2},"حفار باك هول":{"u":"hr","lo":4.5,"hi":6.0,"t":5.2},"حفار للحفريات الدقيقة ( ترنشر )":{"u":"hr","lo":3.0,"hi":5.0,"t":4.0},"شيول صغير بوبكات بكت":{"u":"hr","lo":4.0,"hi":7.0,"t":5.5},"شيول كبير":{"u":"hr","lo":18.0,"hi":28.0,"t":22.0},"رصاصة اسفلت صغير":{"u":"hr","lo":4.0,"hi":6.0,"t":5.0},"حفار أعمدة Digger":{"u":"hr","lo":4.0,"hi":6.0,"t":5.0},"رافعة شوكية":{"u":"hr","lo":3.5,"hi":6.0,"t":4.5},"هانشا":{"u":"hr","lo":4.0,"hi":6.0,"t":5.0},"FLEX":{"u":"hr","lo":4.0,"hi":6.0,"t":5.0}};
+</script>
+<script>
+/* ================================================================
+   وقّاد — نظام تتبع وقود الأسطول
+   Firebase Sync + Camera OCR + localStorage fallback
+   ================================================================ */
+
+/* ── Firebase Config — project wagad-502. Backend: Firebase Auth (email/password
+   for owner/admin, anonymous for drivers) + Cloud Firestore. ── */
+var FIREBASE_CONFIG = {
+  apiKey:"AIzaSyBqiDkxXfs7x2p4bxDdNbB3D4GHBvBzBh0",
+  authDomain:"wagad-502.firebaseapp.com",
+  projectId:"wagad-502",
+  storageBucket:"wagad-502.firebasestorage.app",
+  messagingSenderId:"609720816669",
+  appId:"1:609720816669:web:42e6b5a5e6c834542222f4"
+};
+
+var CO="شركة الأساس العريض للمقاولات";
+var SAR=2.18;
+var AF=[].concat(FD), FP={};
+var fbDB=null, fbReady=false, fsDB=null;
+var CUR_USER=null;
+var LOGS_CACHE=[], ADMINS_CACHE=[], OV_CACHE={a:[],d:[]}, DRIVERS_CACHE=[];
+
+function ri(){FP={};for(var i=0;i<AF.length;i++)FP[AF[i].p]=AF[i];}
+ri();
+
+/* ── State ── */
+var ST_role=null, ST_page="dash", ST_target=null, ST_admin=null;
+var ST_selV=null, ST_opName="", ST_drvName="", ST_lastReading=null;
+var ST_capturedPhotos={}; /* fieldId -> compressed JPEG Blob, cleared after each submit */
+
+/* ── Firebase init (SDK loads lazily, only when configured — saves data otherwise) ── */
+var logsListenerOn=false, logsUnsub=null;
+function loadFirebaseScripts(cb){
+  if(window.firebase){cb();return;}
+  var parts=["app","auth","firestore"]; /* "storage" intentionally left out — photo attachments are on hold until Storage is enabled on the Firebase project */
+  (function next(i){
+    if(i>=parts.length){cb();return;}
+    var s=document.createElement("script");
+    s.src="https://www.gstatic.com/firebasejs/9.23.0/firebase-"+parts[i]+"-compat.js";
+    s.onload=function(){next(i+1);};
+    s.onerror=function(){fbReady=false;render();};
+    document.head.appendChild(s);
+  })(0);
+}
+function initFB(){
+  if(!FIREBASE_CONFIG||!FIREBASE_CONFIG.apiKey){fbReady=false;render();return;}
+  loadFirebaseScripts(function(){
+    try{
+      var app=firebase.initializeApp(FIREBASE_CONFIG);
+      fsDB=firebase.firestore(app);
+      fsDB.enablePersistence({synchronizeTabs:true}).catch(function(){});
+      fbReady=true;
+      fsDB.collection("fleetOv").doc("current").onSnapshot(function(doc){
+        OV_CACHE=doc.exists?doc.data():{a:[],d:[]};
+        applyOv(OV_CACHE);
+        if(document.getElementById("MP"))renderPage();
+      },function(){/* not signed in yet — will refire once auth resolves */});
+      fsDB.collection("drivers").doc("current").onSnapshot(function(doc){
+        DRIVERS_CACHE=doc.exists?(doc.data().list||[]):[];
+        if(document.getElementById("MP"))renderPage();
+      },function(){});
+      firebase.auth(app).onAuthStateChanged(onAuthChanged);
+    }catch(e){console.error("Firebase init failed:",e);fbReady=false;render();}
+  });
+}
+/* Restores the session on load/reload: real accounts map to their admins/{uid}
+   profile, anonymous sessions are drivers, no user means show the gate. */
+function onAuthChanged(user){
+  CUR_USER=user;
+  if(!user){ if(ST_role===null||ST_role==="auth")render(); return; }
+  if(user.isAnonymous){
+    ST_opName=getOp();ST_drvName=ST_opName;
+    ST_role=ST_opName?"driver":ST_role;
+    render();
+    return;
+  }
+  fsDB.collection("admins").doc(user.uid).get().then(function(doc){
+    if(!doc.exists){firebase.auth().signOut();return;}
+    var d=doc.data();
+    ST_admin={id:user.uid,n:d.name,email:d.email,isOwner:!!d.isOwner,pages:d.pages||null};
+    ST_role=ST_admin.isOwner?"owner":"admin";
+    var allowed=allowedPageKeys();
+    ST_page=allowed.indexOf("dash")>=0?"dash":(allowed[0]||"dash");
+    ensureLogsListener();
+    render();
+  });
+}
+/* Regular admins can be restricted by the owner to a subset of pages (ST_admin.pages).
+   Missing/null pages means "all pages" — keeps pre-existing admins unaffected. */
+var AN_KEYS=["dash","alrt","log","flt","roi"];
+function allowedPageKeys(){
+  if(ST_role==="owner")return ON.map(function(n){return n[0];});
+  if(ST_admin&&ST_admin.pages)return AN_KEYS.filter(function(k){return ST_admin.pages.indexOf(k)>=0;});
+  return AN_KEYS.slice();
+}
+/* Only stream the full fuel-log history to admin/owner sessions — drivers just write their own entry, so their devices never download the whole fleet history */
+function ensureLogsListener(){
+  if(!fsDB)return;
+  var need=fbReady&&(ST_role==="admin"||ST_role==="owner");
+  if(need&&!logsListenerOn){
+    logsListenerOn=true;
+    logsUnsub=fsDB.collection("logs").orderBy("createdAt","desc").onSnapshot(function(snap){
+      LOGS_CACHE=snap.docs.map(function(d){var o=d.data();o.id=d.id;return o;});
+      if(document.getElementById("MP"))renderPage();
+    });
+  } else if(!need&&logsListenerOn){
+    if(logsUnsub)logsUnsub();
+    logsListenerOn=false;LOGS_CACHE=[];
+  }
+}
+
+/* ── Storage (Firestore + a couple of harmless local-only prefs) ── */
+function lg(k){try{return localStorage.getItem("wq_"+k);}catch(e){return null;}}
+function ls(k,v){try{localStorage.setItem("wq_"+k,v);return true;}catch(e){return false;}}
+function loadLogs(){return LOGS_CACHE;}
+function saveLog(entry,photos,cb){
+  if(!fbReady||!fsDB){if(cb)cb(false);return;}
+  var ref=fsDB.collection("logs").doc();
+  var vRef=fsDB.collection("vehicles").doc(entry.plate);
+  var photoFields={};
+  var uploads=[];
+  var storageOn=typeof firebase.storage==="function"; /* Storage SDK isn't loaded while the feature is off — skip cleanly instead of throwing */
+  /* Photo attachment is best-effort: a Storage hiccup (or Storage not being
+     enabled at all) must never block saving the actual fuel record. */
+  if(storageOn&&photos&&photos.prev)uploads.push(
+    firebase.storage().ref("logPhotos/"+ref.id+"/prev.jpg").put(photos.prev,{contentType:"image/jpeg"})
+      .then(function(snap){return snap.ref.getDownloadURL();}).then(function(url){photoFields.photoPrev=url;})
+      .catch(function(e){console.error("photo upload (prev) failed, saving entry without it:",e);})
+  );
+  if(storageOn&&photos&&photos.curr)uploads.push(
+    firebase.storage().ref("logPhotos/"+ref.id+"/curr.jpg").put(photos.curr,{contentType:"image/jpeg"})
+      .then(function(snap){return snap.ref.getDownloadURL();}).then(function(url){photoFields.photoCurr=url;})
+      .catch(function(e){console.error("photo upload (curr) failed, saving entry without it:",e);})
+  );
+  Promise.all(uploads).then(function(){
+    var data=Object.assign({},entry,photoFields,{createdAt:firebase.firestore.FieldValue.serverTimestamp()});
+    var batch=fsDB.batch();
+    batch.set(ref,data);
+    batch.set(vRef,{lastCurr:entry.curr,lastDate:entry.date,lastTime:entry.time||"",lastDriverName:entry.driverName||""});
+    return batch.commit();
+  }).then(function(){if(cb)cb(true);}).catch(function(e){console.error("saveLog failed:",e);if(cb)cb(false);});
+}
+function patchLog(e){if(fbReady&&fsDB)fsDB.collection("logs").doc(e.id).update({reviewed:e.reviewed});}
+
+function loadAdm(){return ADMINS_CACHE;}
+function getOp(){return lg("op")||"";}
+function setOp(v){ls("op",v);}
+function loadOv(){return OV_CACHE;}
+function saveOv(o){if(fbReady&&fsDB)fsDB.collection("fleetOv").doc("current").set(o);applyOv(o);}
+function applyOv(o){var d=new Set(o.d||[]);AF=FD.filter(function(v){return !d.has(v.p);}).concat(o.a||[]);ri();}
+
+/* ── Utils ── */
+function authErr(e){
+  var m={
+    "auth/invalid-email":"البريد الإلكتروني غير صالح",
+    "auth/user-not-found":"الحساب غير موجود",
+    "auth/wrong-password":"كلمة المرور غير صحيحة",
+    "auth/invalid-credential":"البيانات غير صحيحة",
+    "auth/email-already-in-use":"البريد الإلكتروني مستخدم مسبقاً",
+    "auth/weak-password":"كلمة المرور ضعيفة جداً (6 أحرف على الأقل)",
+    "auth/too-many-requests":"محاولات كثيرة، حاول لاحقاً"
+  };
+  return m[e.code]||e.message;
+}
+function fmt(n,d){if(n==null||isNaN(n))return "—";d=d==null?1:d;return Number(n).toLocaleString("en-US",{minimumFractionDigits:d,maximumFractionDigits:d});}
+function pct(n,d){if(n==null||isNaN(n))return "—";d=d==null?1:d;return(n*100).toLocaleString("en-US",{minimumFractionDigits:d,maximumFractionDigits:d})+"%";}
+function toast(m,ic){var el=document.getElementById("T");el.innerHTML="<span>"+(ic||"✅")+"</span><span>"+m+"</span>";el.style.display="flex";clearTimeout(window._tt);window._tt=setTimeout(function(){el.style.display="none";},2500);}
+function es(ic,t,s){return '<div class="es"><span class="ei">'+ic+'</span><div class="et">'+t+"</div>"+(s?'<div style="font-size:11px;margin-top:4px">'+s+"</div>":"")+"</div>";}
+function calcE(plate,prev,curr,liters){
+  var v=FP[plate],ref=RM[v&&v.u],diff=curr-prev,ar=null,dev=null;
+  if(diff>0&&liters>0&&ref){if(ref.u==="km"){ar=diff/liters;dev=(ref.t-ar)/ref.t;}else{ar=liters/diff;dev=(ar-ref.t)/ref.t;}}
+  var st="gray",sl="—";
+  if(dev!=null){var a=Math.abs(dev);if(a<=0.05){st="green";sl="طبيعي";}else if(a<=0.2){st="yellow";sl="انحراف بسيط";}else if(a<=0.4){st="orange";sl="يحتاج مراجعة";}else{st="red";sl="إهدار / خطأ";}}
+  return {diff:diff,ar:ar,dev:dev,st:st,sl:sl,ref:ref?ref.t:null,un:ref?ref.u:null};
+}
+/* ── Action helpers (no string args for onclick safety) ── */
+function goOwner(){ST_target="owner";ST_role="auth";render();}
+function goAdmin(){ST_target="admin";ST_role="auth";render();}
+function goDriver(){
+  if(!fbReady){toast("تعذّر الاتصال — تأكد من الإنترنت","⚠️");return;}
+  if(CUR_USER&&CUR_USER.isAnonymous){
+    ST_opName=getOp();ST_drvName=ST_opName;ST_role="driver";render();return;
+  }
+  if(CUR_USER&&!CUR_USER.isAnonymous)firebase.auth().signOut();
+  firebase.auth().signInAnonymously().then(function(){
+    ST_opName=getOp();ST_drvName=ST_opName;ST_role="driver";render();
+  }).catch(function(){toast("تعذّر الدخول، تأكد من الاتصال","❌");});
+}
+function goBack(){ST_role=null;render();}
+function goLogout(){if(fbReady)firebase.auth().signOut();ST_role=null;ST_admin=null;ST_opName="";ST_selV=null;ST_lastReading=null;render();}
+function goChOp(){ST_opName="";setOp("");render();}
+function navTo(pg){ST_page=pg;renderPage();}
+
+/* ── Render root ── */
+function render(){
+  ensureLogsListener();
+  if(ST_role==="auth"){rAuth();return;}
+  if(!ST_role){rGate();return;}
+  if(ST_role==="driver"){rDriver();return;}
+  rAdmin();
+}
+
+/* ── Gate ── */
+function rGate(){
+  var syncInfo=fbReady?
+    '<div style="margin-top:10px;font-size:11px;color:var(--tl)">🟢 المزامنة مفعّلة — البيانات متزامنة على كل الأجهزة</div>':
+    '<div style="margin-top:10px;font-size:11px;color:var(--dm)">⏳ جارٍ الاتصال بالخادم...</div>';
+  document.getElementById("A").innerHTML=
+    '<div class="gate"><div class="gc">'+
+    '<div style="display:flex;align-items:center;justify-content:center;gap:11px;margin-bottom:10px">'+
+    '<div class="logo">⛽</div><div style="font-size:26px;font-weight:800">وقّاد</div></div>'+
+    '<div style="color:var(--dm);font-size:12.5px;max-width:480px;margin:0 auto 10px;line-height:1.8">'+CO+'<br>'+AF.length+' مركبة ومعدة</div>'+
+    syncInfo+
+    '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:24px">'+
+    '<div class="rc"><span style="font-size:26px;display:block;margin-bottom:10px">👑</span><h3>وضع المالك</h3>'+
+    '<p>إشراف كامل + إدارة الأسطول والمستخدمين</p><button class="rbA" onclick="goOwner()">دخول كمالك</button></div>'+
+    '<div class="rc"><span style="font-size:26px;display:block;margin-bottom:10px">🛡️</span><h3>وضع المشرف</h3>'+
+    '<p>لوحة تحكم، تنبيهات، سجل التعبئة</p><button class="rbB" onclick="goAdmin()">دخول كمشرف</button></div>'+
+    '<div class="rc"><span style="font-size:26px;display:block;margin-bottom:10px">🚚</span><h3>وضع السائق</h3>'+
+    '<p>تسجيل سريع لتعبئة الوقود</p><button class="rbC" onclick="goDriver()">دخول كسائق</button></div>'+
+    '</div></div></div>';
+}
+
+/* ── Auth (Firebase email/password) ── */
+function rAuth(){
+  var el=document.getElementById("A"),isOw=ST_target==="owner";
+  el.innerHTML='<div class="gate"><div class="gc"><div class="ac">'+
+    '<div class="at">'+(isOw?"دخول المالك":"دخول المشرف")+'</div>'+
+    '<div class="as">أدخل بريدك الإلكتروني وكلمة المرور.</div>'+
+    '<div class="fl"><label>البريد الإلكتروني</label><input type="email" id="iEm" placeholder="name@example.com" autocomplete="username"></div>'+
+    '<div class="fl"><label>كلمة المرور</label><input type="password" id="iP" autocomplete="current-password"></div>'+
+    '<div class="ae" id="iE"></div>'+
+    '<button class="sb" id="btnGo">دخول →</button>'+
+    '<button style="background:none;border:none;color:var(--dm);font-size:11.5px;cursor:pointer;margin-top:9px;width:100%" id="btnForgot">نسيت كلمة المرور؟</button>'+
+    '<button class="bk" onclick="goBack()">رجوع</button>'+
+    '</div></div></div>';
+  function go(){
+    var errEl=document.getElementById("iE");errEl.textContent="";
+    var email=(document.getElementById("iEm").value||"").trim();
+    var pass=document.getElementById("iP").value||"";
+    if(!email){errEl.textContent="❌ الرجاء إدخال البريد الإلكتروني";return;}
+    if(!pass){errEl.textContent="❌ الرجاء إدخال كلمة المرور";return;}
+    var btn=document.getElementById("btnGo");btn.disabled=true;
+    firebase.auth().signInWithEmailAndPassword(email,pass).then(function(cred){
+      return fsDB.collection("admins").doc(cred.user.uid).get().then(function(doc){
+        if(!doc.exists){errEl.textContent="❌ هذا الحساب غير مسجل كمشرف";firebase.auth().signOut();btn.disabled=false;return;}
+        var d=doc.data();
+        if(isOw&&!d.isOwner){errEl.textContent="❌ هذا الحساب ليس بصلاحية المالك";firebase.auth().signOut();btn.disabled=false;return;}
+        ST_admin={id:cred.user.uid,n:d.name,email:d.email,isOwner:!!d.isOwner};
+        ST_role=ST_admin.isOwner?"owner":"admin";ST_page="dash";
+        toast("أهلاً "+d.name,"✅");render();
+      });
+    }).catch(function(e){errEl.textContent="❌ "+authErr(e);btn.disabled=false;});
+  }
+  document.getElementById("btnGo").onclick=go;
+  document.getElementById("iP").addEventListener("keydown",function(e){if(e.key==="Enter")go();});
+  document.getElementById("btnForgot").onclick=function(){
+    var email=(document.getElementById("iEm").value||"").trim();
+    var errEl=document.getElementById("iE");
+    if(!email){errEl.textContent="❌ أدخل بريدك الإلكتروني أولاً";return;}
+    firebase.auth().sendPasswordResetEmail(email).then(function(){
+      toast("أُرسل رابط إعادة التعيين إلى بريدك","📧");
+    }).catch(function(e){errEl.textContent="❌ "+authErr(e);});
+  };
+}
+
+/* ── Topbar ── */
+function tb(){
+  var rl=ST_role==="owner"?"👑 المالك":ST_role==="admin"?"🛡️ مشرف":"🚚 سائق";
+  var cls=ST_role==="owner"?"ow":ST_role==="admin"?"adm":"drv";
+  var syncDot=fbReady?'<span style="width:8px;height:8px;border-radius:50%;background:var(--tl);display:inline-block;margin-left:4px" title="مزامنة مفعّلة"></span>':'';
+  return '<div class="tb">'+
+    '<div class="tbl"><div class="logo">⛽</div><div><div class="bn">وقّاد '+syncDot+'</div><div class="bs">'+CO+'</div></div></div>'+
+    '<div class="tbr">'+(ST_admin?'<span style="color:var(--dm);font-size:11px">'+ST_admin.n+"</span>":"")+
+    ' <div class="chip '+cls+'">'+rl+'</div>'+
+    ' <button class="ob" onclick="goLogout()">خروج</button></div></div>'+
+    (fbReady?
+      '<div class="sbar ok"><span class="sdot"></span>🟢 مزامنة مباشرة مفعّلة — البيانات تظهر على كل الأجهزة فوراً</div>':
+      '<div class="sbar local"><span class="sdot loc"></span>⏳ جارٍ الاتصال بالخادم...</div>');
+}
+
+/* ── Admin shell ── */
+var ON=[["dash","لوحة المالك","📊"],["act","النشاط الحي","📡"],["drv","السائقون","🏆"],
+        ["alrt","التنبيهات","🚨"],["log","سجل التعبئة","📝"],["flt","الأسطول","🚛"],
+        ["fmg","إدارة الأسطول","🚗"],["drvm","إدارة السائقين","👤"],["usr","المستخدمون","🔑"],["roi","الجدوى","💡"]];
+var AN=[["dash","لوحة التحكم","📊"],["alrt","التنبيهات","🚨"],["log","سجل التعبئة","📝"],
+        ["flt","الأسطول","🚛"],["roi","الجدوى","💡"]];
+function navH(nav,cls){return nav.map(function(n){return '<button class="'+cls+(ST_page===n[0]?" on":"")+" npg"+'" data-pg="'+n[0]+'">'+n[2]+" "+n[1]+"</button>";}).join("");}
+function rAdmin(){
+  var allowed=allowedPageKeys();
+  var nav=(ST_role==="owner"?ON:AN).filter(function(n){return allowed.indexOf(n[0])>=0;});
+  if(allowed.indexOf(ST_page)<0)ST_page=nav.length?nav[0][0]:"dash";
+  document.getElementById("A").innerHTML=tb()+'<div class="lay"><div class="snv"><div class="ns">'+(ST_role==="owner"?"المالك":"القوائم")+"</div>"+navH(nav,"nb")+"</div>"+'<div class="mp" id="MP"></div></div>'+'<div class="mtt">'+navH(nav.slice(0,5),"mt")+"</div>";
+  document.querySelectorAll(".npg").forEach(function(btn){btn.addEventListener("click",function(){navTo(this.dataset.pg);});});
+  if(!nav.length){document.getElementById("MP").innerHTML='<div class="card">'+es("🔒","ما عندك صلاحية على أي صفحة حالياً","تواصل مع المالك")+"</div>";return;}
+  renderPage();
+}
+function renderPage(){
+  var mp=document.getElementById("MP");if(!mp)return;
+  if(ST_page==="usr"){
+    fsDB.collection("admins").get().then(function(snap){
+      ADMINS_CACHE=snap.docs.map(function(d){var v=d.data();return{id:d.id,n:v.name,email:v.email,isOwner:!!v.isOwner,pages:v.pages||null};});
+      var mp2=document.getElementById("MP");if(!mp2)return;
+      mp2.innerHTML=pUsr(ADMINS_CACHE);bndUsr();
+    });
+    return;
+  }
+  var logs=loadLogs();
+  if(ST_page==="dash")mp.innerHTML=pDash(logs);
+  else if(ST_page==="act")mp.innerHTML=pAct(logs);
+  else if(ST_page==="drv")mp.innerHTML=pDrv(logs);
+  else if(ST_page==="alrt"){mp.innerHTML=pAlrt(logs);bndAlrt();}
+  else if(ST_page==="log"){mp.innerHTML=pLog();rLR();}
+  else if(ST_page==="flt"){mp.innerHTML=pFlt();rFR();}
+  else if(ST_page==="fmg"){mp.innerHTML=pFmg();rFmR();}
+  else if(ST_page==="drvm"){mp.innerHTML=pDrvM();bndDrvM();}
+  else if(ST_page==="roi")mp.innerHTML=pROI(logs);
+}
+function agg(logs){
+  var tot=0,vd=[],open=[],td=new Date().toISOString().slice(0,10),tr=new Set();
+  for(var i=0;i<logs.length;i++){var l=logs[i];tot+=l.liters||0;if(l.dev!=null)vd.push(l.dev);if((l.st==="red"||l.st==="orange")&&!l.reviewed)open.push(l);tr.add(l.plate);}
+  return{tot:tot,avg:vd.length?vd.reduce(function(a,b){return a+b;},0)/vd.length:null,open:open,td:logs.filter(function(l){return l.date===td;}).length,tr:tr.size};
+}
+function pDash(logs){
+  var a=agg(logs),byP={};
+  for(var i=0;i<logs.length;i++){var l=logs[i];if(l.dev==null)continue;if(!byP[l.plate])byP[l.plate]=[];byP[l.plate].push(l.dev);}
+  var top=Object.keys(byP).map(function(p){var d=byP[p];return{p:p,avg:d.reduce(function(a,b){return a+b;},0)/d.length,n:d.length};}).sort(function(a,b){return b.avg-a.avg;}).slice(0,6);
+  var r='<div class="ph"><h1>'+(ST_role==="owner"?"لوحة المالك":"لوحة التحكم")+'</h1><p>'+AF.length+" مركبة · "+logs.length+" عملية مسجّلة</p></div>";
+  if(ST_role==="owner")r+='<div class="op"><h2>👑 وضع المالك</h2><p>'+(fbReady?"🟢 المزامنة الفورية مفعّلة — كل التعبئات تظهر هنا في الحال.":"⏳ جارٍ الاتصال بالخادم...")+"</p></div>";
+  r+='<div class="kg"><div class="kc kcb"><div class="kb"></div><div class="kl">الأسطول</div><div class="kv">'+AF.length+'</div></div><div class="kc kca"><div class="kb"></div><div class="kl">التعبئات</div><div class="kv">'+logs.length+'</div><div class="ks">'+a.td+' اليوم</div></div><div class="kc kct"><div class="kb"></div><div class="kl">إجمالي اللترات</div><div class="kv">'+fmt(a.tot,0)+'</div></div><div class="kc kcr"><div class="kb"></div><div class="kl">تنبيهات</div><div class="kv">'+a.open.length+'</div></div></div>';
+  r+='<div class="g2"><div class="card"><div class="ch"><h2>أعلى 6 مركبات إهداراً</h2></div>';
+  if(!top.length)r+=es("📭","بانتظار أول تسجيلات","");
+  else for(var i=0;i<top.length;i++){var o=top[i],v=FP[o.p];var c=Math.abs(o.avg)>0.4?"var(--rd)":Math.abs(o.avg)>0.2?"var(--og)":"var(--tl)";r+='<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--brd)"><div style="width:18px;text-align:center;font-size:10px;font-weight:700;color:var(--fn)">'+(i+1)+'</div><div style="flex:1"><div class="num" style="font-weight:700;font-size:12px">'+o.p+'</div><div style="font-size:10.5px;color:var(--dm)">'+(v?v.u:"")+" · "+o.n+' عملية</div></div><div class="num" style="font-weight:800;font-size:12px;color:'+c+'">'+(o.avg>=0?"+":"")+pct(o.avg)+"</div></div>";}
+  r+='</div><div class="card"><div class="ch"><h2>آخر النشاط</h2></div>';
+  if(!logs.length)r+=es("🚚","بانتظار التسجيلات","");
+  else{var sl=logs.slice(0,7);for(var i=0;i<sl.length;i++){var l=sl[i];r+='<div class="rii"><div><div class="num" style="font-weight:700;font-size:12px">'+l.plate+'</div><div style="font-size:10.5px;color:var(--dm)">'+(l.driverName||"—")+" · "+l.date+'</div></div><div style="text-align:left"><div class="num" style="font-weight:700;font-size:12px">'+fmt(l.liters,1)+' L</div><span class="bg '+l.st+'">'+l.sl+"</span></div></div>";}}
+  r+="</div></div>";return r;
+}
+function pAct(logs){
+  var td=new Date().toISOString().slice(0,10),tl=logs.filter(function(l){return l.date===td;});
+  var byD={};logs.forEach(function(l){var n=l.driverName||"—";if(!byD[n])byD[n]=[];byD[n].push(l);});
+  var r='<div class="ph"><h1>📡 النشاط الحي</h1><p>'+td+" · "+tl.length+' عملية اليوم</p></div>';
+  r+='<div class="card"><div class="ch"><h2>عمليات اليوم</h2></div>';
+  if(!tl.length)r+=es("📋","لا توجد عمليات اليوم","");
+  else{r+='<div class="tw"><table><thead><tr><th>الوقت</th><th>اللوحة</th><th>السائق</th><th>اللتر</th><th>الانحراف</th><th>الحالة</th></tr></thead><tbody>';for(var i=0;i<tl.length;i++){var l=tl[i];r+="<tr><td class='num'>"+(l.time||"—")+"</td><td class='num'>"+l.plate+"</td><td>"+(l.driverName||"—")+"</td><td class='num'>"+fmt(l.liters,1)+"</td><td class='num'>"+(l.dev!=null?(l.dev>=0?"+":"")+pct(l.dev):"—")+"</td><td><span class='bg "+l.st+"'>"+l.sl+"</span></td></tr>";}r+="</tbody></table></div>";}
+  r+="</div>";
+  var dkeys=Object.keys(byD).sort(function(a,b){return byD[b].length-byD[a].length;});
+  r+='<div class="card"><div class="ch"><h2>ملخص السائقين</h2></div>';
+  if(!dkeys.length)r+=es("👥","لا توجد بيانات","");
+  else{r+='<div class="tw"><table><thead><tr><th>السائق</th><th>عمليات</th><th>لتر</th><th>متوسط انحراف</th></tr></thead><tbody>';for(var i=0;i<dkeys.length;i++){var n=dkeys[i],ls2=byD[n];var tot=ls2.reduce(function(s,l){return s+(l.liters||0);},0);var vd=ls2.filter(function(l){return l.dev!=null;});var ad=vd.length?vd.reduce(function(s,l){return s+l.dev;},0)/vd.length:null;r+="<tr><td><b>"+n+"</b></td><td class='num'>"+ls2.length+"</td><td class='num'>"+fmt(tot,0)+"</td><td class='num' style='color:"+(ad!=null&&Math.abs(ad)>0.2?"var(--og)":"var(--tl)")+"'>"+(ad!=null?pct(ad):"—")+"</td></tr>";}r+="</tbody></table></div>";}
+  r+="</div>";return r;
+}
+function pDrv(logs){
+  var by={};logs.forEach(function(l){var n=l.driverName||"—";if(!by[n])by[n]=[];by[n].push(l);});
+  var ranked=Object.keys(by).map(function(n){var ls2=by[n];var vd=ls2.filter(function(l){return l.dev!=null;});var sc=vd.length?Math.abs(vd.reduce(function(a,b){return a+b.dev;},0)/vd.length):999;return{n:n,ls:ls2,sc:sc};}).sort(function(a,b){return a.sc-b.sc;});
+  var r='<div class="ph"><h1>🏆 أداء السائقين</h1></div>';
+  if(!ranked.length)return r+'<div class="card">'+es("🏆","بانتظار التسجيلات","")+"</div>";
+  for(var i=0;i<ranked.length;i++){var d=ranked[i];var vd=d.ls.filter(function(l){return l.dev!=null;});var ad=vd.length?vd.reduce(function(s,l){return s+l.dev;},0)/vd.length:null;var tot=d.ls.reduce(function(s,l){return s+(l.liters||0);},0);var g=d.ls.filter(function(l){return l.st==="green";}).length;var rb=d.ls.filter(function(l){return l.st==="red";}).length;var c=ad!=null&&Math.abs(ad)<=0.05?"var(--tl)":ad!=null&&Math.abs(ad)<=0.2?"var(--amb)":"var(--rd)";r+='<div class="card" style="border-right:4px solid '+c+'"><div style="display:flex;align-items:center;gap:10px"><div style="font-size:20px">'+((["🥇","🥈","🥉"])[i]||("#"+(i+1)))+'</div><div style="flex:1"><div style="font-weight:800;font-size:14px">'+d.n+'</div><div style="font-size:11px;color:var(--dm);margin-top:2px">'+d.ls.length+" عملية · "+fmt(tot,0)+" L · ✅"+g+" ❌"+rb+'</div></div><div style="text-align:left"><div class="num" style="font-size:16px;font-weight:800;color:'+c+'">'+(ad!=null?pct(Math.abs(ad)):"—")+'</div></div></div></div>';}
+  return r;
+}
+function pAlrt(logs){
+  var al=logs.filter(function(l){return l.st==="red"||l.st==="orange";}).sort(function(a,b){return Math.abs(b.dev)-Math.abs(a.dev);});
+  var r='<div class="ph"><h1>التنبيهات</h1><p>'+al.length+' حالة تجاوزت 20% انحراف.</p></div><div class="card"><div class="ch"><h2>'+al.length+' تنبيه</h2></div>';
+  if(!al.length)r+=es("✅","لا توجد تنبيهات — أداء ممتاز","");
+  else for(var i=0;i<al.length;i++){var a=al[i];r+='<div class="arow"><div class="adot '+(a.st==="red"?"red":"orange")+'"></div><div style="flex:1"><div style="font-size:13px;font-weight:700">'+a.plate+(a.reviewed?' <span class="bg gray">راجعت</span>':"")+'</div><div style="font-size:11px;color:var(--dm);margin-top:3px">'+a.date+" · "+(a.driverName||"—")+" · "+fmt(a.ar,2)+" vs "+fmt(a.ref,2)+" · "+(a.dev>=0?"+":"")+pct(a.dev)+"</div></div>"+(a.reviewed?"":'<button class="btn btng" style="font-size:10.5px;padding:5px 9px" data-rvid="'+a.id+'">مراجعة</button>')+"</div>";}
+  return r+"</div>";
+}
+function bndAlrt(){document.querySelectorAll("[data-rvid]").forEach(function(btn){btn.addEventListener("click",function(){var id=this.dataset.rvid,logs=loadLogs();for(var i=0;i<logs.length;i++){if(logs[i].id===id){logs[i].reviewed=true;patchLog(logs[i]);break;}}toast("تمت المراجعة","✅");renderPage();});});}
+function pLog(){var isOwn=ST_role==="owner";return '<div class="ph"><h1>سجل التعبئة</h1></div><div class="tbar"><input class="ti" id="lS" placeholder="ابحث..."><select class="ts" id="lF"><option value="">كل الحالات</option><option value="green">🟢 طبيعي</option><option value="yellow">🟡 انحراف</option><option value="orange">🟠 مراجعة</option><option value="red">🔴 إهدار</option></select><button class="btn btng" id="btnExp">⬇️ CSV</button>'+(isOwn?'<button class="btn btnp" id="btnMlOpen">➕ إضافة عملية يدوياً</button>':"")+'</div><div class="card" style="padding:0"><div class="tw" style="max-height:450px;overflow-y:auto"><table><thead><tr><th>التاريخ</th><th>الوقت</th><th>اللوحة</th><th>الاستخدام</th><th>السابقة</th><th>الحالية</th><th>اللتر</th><th>الفعلي</th><th>المرجعي</th><th>الانحراف</th><th>الحالة</th><th>السائق</th><th>الموقع</th>'+(isOwn?"<th></th>":"")+'</tr></thead><tbody id="lTb"></tbody></table></div></div>';}
+function rLR(){
+  var isOwn=ST_role==="owner";
+  var s=(document.getElementById("lS")||{value:""}).value.trim();var fv=(document.getElementById("lF")||{value:""}).value;var rows=loadLogs();if(s)rows=rows.filter(function(l){return l.plate.includes(s)||(l.driverName||"").includes(s);});if(fv)rows=rows.filter(function(l){return l.st===fv;});var tb=document.getElementById("lTb");if(!tb)return;if(!rows.length){tb.innerHTML="<tr><td colspan='"+(isOwn?14:13)+"' style='text-align:center;padding:20px;color:var(--fn)'>لا نتائج</td></tr>";return;}var h="";for(var i=0;i<rows.length;i++){var l=rows[i];var v=FP[l.plate];h+="<tr><td class='num'>"+l.date+"</td><td class='num'>"+(l.time||"—")+"</td><td class='num'>"+l.plate+"</td><td>"+(v?v.u:"")+"</td><td class='num'>"+fmt(l.prev,0)+"</td><td class='num'>"+fmt(l.curr,0)+"</td><td class='num'>"+fmt(l.liters,1)+"</td><td class='num'>"+fmt(l.ar,2)+"</td><td class='num'>"+fmt(l.ref,2)+"</td><td class='num'>"+(l.dev!=null?(l.dev>=0?"+":"")+pct(l.dev):"—")+"</td><td><span class='bg "+l.st+"'>"+l.sl+"</span></td><td>"+(l.driverName||"—")+"</td><td>"+(l.station||"—")+(l.photoPrev||l.photoCurr?' <a href="'+(l.photoCurr||l.photoPrev)+'" target="_blank" rel="noopener" title="عرض صورة العداد">📷</a>':"")+"</td>"+(isOwn?"<td><button class='btn btnd' style='font-size:10px;padding:4px 8px' data-dellog='"+l.id+"'>حذف</button></td>":"")+"</tr>";}tb.innerHTML=h;
+  var lsi=document.getElementById("lS"),lfi=document.getElementById("lF"),bex=document.getElementById("btnExp");if(lsi)lsi.oninput=rLR;if(lfi)lfi.onchange=rLR;if(bex)bex.onclick=expCsv;
+  var mlo=document.getElementById("btnMlOpen");if(mlo)mlo.onclick=openManualLog;
+  document.querySelectorAll("[data-dellog]").forEach(function(btn){btn.addEventListener("click",function(){
+    var id=this.dataset.dellog;
+    if(!confirm("حذف هذه العملية نهائياً؟"))return;
+    fsDB.collection("logs").doc(id).delete().then(function(){toast("تم الحذف","🗑️");}).catch(function(){toast("تعذّر الحذف","❌");});
+  });});
+}
+function openManualLog(){
+  var modal=document.createElement("div");
+  modal.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto;";
+  modal.innerHTML='<div style="background:var(--p1);border:1px solid var(--brd);border-radius:12px;padding:18px;max-width:420px;width:100%;max-height:90vh;overflow-y:auto">'+
+    '<div style="font-weight:800;font-size:14px;margin-bottom:10px">➕ إضافة عملية يدوياً</div>'+
+    '<div class="fl vp"><label>رقم اللوحة</label><input type="text" id="mlP" placeholder="اكتب للبحث..." autocomplete="off"><div class="vrs" id="mlR"></div></div>'+
+    '<div class="fr"><div class="fl"><label>التاريخ</label><input type="date" id="mlDate" value="'+new Date().toISOString().slice(0,10)+'"></div><div class="fl"><label>الوقت</label><input type="time" id="mlTime" value="'+new Date().toTimeString().slice(0,5)+'"></div></div>'+
+    '<div class="fr"><div class="fl"><label>القراءة السابقة '+camBtn("mlPrev")+'</label><input type="number" id="mlPrev"></div><div class="fl"><label>القراءة الحالية '+camBtn("mlCurr")+'</label><input type="number" id="mlCurr"></div></div>'+
+    '<div class="fr"><div class="fl"><label>الوقود (لتر)</label><input type="number" id="mlL"></div><div class="fl"><label>المحطة</label><input type="text" id="mlSt"></div></div>'+
+    '<div class="fl"><label>اسم السائق</label><input type="text" id="mlDrv" placeholder="اسم السائق"></div>'+
+    '<div class="ae" id="mlErr"></div>'+
+    '<div style="display:flex;gap:8px;margin-top:8px"><button class="btn btnp" id="btnMlSave" style="flex:1">حفظ</button><button class="btn btng" id="btnMlClose" style="flex:1">إلغاء</button></div>'+
+    '</div>';
+  document.body.appendChild(modal);
+  modal.querySelectorAll(".cam-btn").forEach(function(btn){btn.addEventListener("click",function(){openCamera(this.dataset.field);});});
+  var selP=null;
+  document.getElementById("btnMlClose").onclick=function(){modal.remove();};
+  var psi=document.getElementById("mlP");
+  psi.oninput=function(){
+    var q=this.value.trim(),rb=document.getElementById("mlR");if(!rb)return;
+    if(!q){rb.style.display="none";return;}
+    var matches=[];for(var i=0;i<AF.length&&matches.length<25;i++){if(AF[i].p.includes(q))matches.push(AF[i]);}
+    var h="";for(var i=0;i<matches.length;i++)h+='<div class="vr" data-mp="'+matches[i].p+'"><b>'+matches[i].p+'</b><span>'+matches[i].u+"</span></div>";
+    rb.innerHTML=h||'<div class="vr">لا نتائج</div>';rb.style.display="block";
+    rb.querySelectorAll("[data-mp]").forEach(function(el){el.addEventListener("click",function(){selP=FP[this.dataset.mp];psi.value=selP.p;rb.style.display="none";});});
+  };
+  document.getElementById("btnMlSave").onclick=function(){
+    var err=document.getElementById("mlErr");err.textContent="";
+    if(!selP){err.textContent="اختر مركبة من القائمة";return;}
+    var date=document.getElementById("mlDate").value,time=document.getElementById("mlTime").value;
+    var prev=parseFloat(document.getElementById("mlPrev").value);
+    var curr=parseFloat(document.getElementById("mlCurr").value);
+    var liters=parseFloat(document.getElementById("mlL").value);
+    var station=document.getElementById("mlSt").value||"";
+    var drv=(document.getElementById("mlDrv").value||"").trim();
+    if(!drv){err.textContent="أدخل اسم السائق";return;}
+    if(isNaN(prev)||isNaN(curr)||isNaN(liters)||liters<=0||curr<=prev){err.textContent="تأكد من صحة القراءات (الحالية أكبر من السابقة)";return;}
+    var c=calcE(selP.p,prev,curr,liters);
+    var entry={plate:selP.p,date:date,time:time,prev:prev,curr:curr,liters:liters,station:station,notes:"",driverName:drv,ar:c.ar,dev:c.dev,st:c.st,sl:c.sl,ref:c.ref,un:c.un,reviewed:false};
+    saveLog(entry,null,function(ok){
+      if(!ok){err.textContent="تعذّر الحفظ";return;}
+      toast("تمت الإضافة","✅");modal.remove();
+    });
+  };
+}
+function expCsv(){var h=["التاريخ","الوقت","اللوحة","الاستخدام","السابقة","الحالية","اللتر","الفعلي","المرجعي","الانحراف%","الحالة","السائق","الموقع"];var r=loadLogs().map(function(l){var v=FP[l.plate];return[l.date,l.time||"",l.plate,v?v.u:"",l.prev,l.curr,l.liters,fmt(l.ar,2),fmt(l.ref,2),l.dev!=null?(l.dev*100).toFixed(1):"",l.sl,l.driverName||"",l.station||""];});var csv=[h].concat(r).map(function(row){return row.map(function(c){return'"'+String(c).replace(/"/g,'""')+'"';}).join(",");}).join("\n");var a=document.createElement("a");a.href="data:text/csv;charset=utf-8,\uFEFF"+encodeURIComponent(csv);a.download="waqqad.csv";a.click();toast("تم التصدير","⬇️");}
+function pFlt(){return '<div class="ph"><h1>دليل الأسطول</h1><p>'+AF.length+' مركبة ومعدة.</p></div><div class="tbar"><input class="ti" id="fS" placeholder="ابحث..."></div><div class="card" style="padding:0"><div class="tw" style="max-height:450px;overflow-y:auto"><table><thead><tr><th>اللوحة</th><th>الاستخدام</th><th>الصانع/الطراز</th><th>الموقع</th><th>آخر تعبئة</th><th>آخر معدل</th><th>الحالة</th></tr></thead><tbody id="fTb"></tbody></table></div></div>';}
+function rFR(){var s=(document.getElementById("fS")||{value:""}).value.trim();var rows=AF.filter(function(v){return !s||v.p.includes(s)||v.u.includes(s)||(v.l||"").includes(s);});var tb=document.getElementById("fTb");if(!tb)return;var logs=loadLogs(),h="";for(var i=0;i<Math.min(rows.length,200);i++){var v=rows[i];var ls2=logs.filter(function(l){return l.plate===v.p;}).sort(function(a,b){return new Date(b.date)-new Date(a.date);});var lx=ls2[0];h+="<tr><td class='num'>"+v.p+"</td><td>"+v.u+"</td><td>"+v.m+(v.mo?" · "+v.mo.slice(0,14):"")+"</td><td>"+(v.l||"—")+"</td><td class='num'>"+(lx?lx.date:"—")+"</td><td class='num'>"+(lx?fmt(lx.ar,2):"—")+"</td><td>"+(lx?"<span class='bg "+lx.st+"'>"+lx.sl+"</span>":"<span class='bg gray'>لا بيانات</span>")+"</td></tr>";}if(rows.length>200)h+="<tr><td colspan='7' style='text-align:center;color:var(--fn);padding:7px'>و "+(rows.length-200)+" مركبة</td></tr>";tb.innerHTML=h;var fsi=document.getElementById("fS");if(fsi)fsi.oninput=rFR;}
+function pFmg(){
+  if(!ST_admin||!ST_admin.isOwner)return '<div class="card">'+es("🔒","للمالك فقط","")+"</div>";
+  var ov=loadOv(),del=new Set(ov.d||[]);
+  var r='<div class="ph"><h1>🚗 إدارة الأسطول</h1></div><div class="card"><div class="ch"><h2>إضافة مركبة جديدة</h2></div><div class="fr"><div class="fl"><label>رقم اللوحة *</label><input type="text" id="fP" placeholder="مثال: ب س ع 1234"></div><div class="fl"><label>نوع الاستخدام *</label><select id="fU"><option value="">اختر</option>';
+  var rmkeys=Object.keys(RM);for(var i=0;i<rmkeys.length;i++)r+="<option>"+rmkeys[i]+"</option>";
+  r+='<option value="أخرى">أخرى</option></select></div></div><div class="fr"><div class="fl"><label>الصانع</label><input type="text" id="fM"></div><div class="fl"><label>الموقع</label><input type="text" id="fL"></div></div><div id="fErr" style="color:var(--rd);font-size:12px;margin-bottom:9px"></div><button class="btn btnp" id="btnFA">➕ إضافة المركبة</button></div>';
+  r+='<div class="card"><div class="ch"><h2>المركبات ('+AF.length+')</h2><span style="font-size:10.5px;color:var(--fn)">'+del.size+' محذوفة</span></div><div class="tbar" style="margin-bottom:10px"><input class="ti" id="fmS" placeholder="ابحث..."></div><div class="tw" style="max-height:360px;overflow-y:auto"><table><thead><tr><th>اللوحة</th><th>الاستخدام</th><th>الصانع</th><th>الموقع</th><th>المصدر</th><th></th></tr></thead><tbody id="fmTb"></tbody></table></div></div>';
+  return r;
+}
+function rFmR(){var ov=loadOv();var added=new Set((ov.a||[]).map(function(v){return v.p;}));var s=(document.getElementById("fmS")||{value:""}).value.trim();var rows=AF.filter(function(v){return !s||v.p.includes(s)||v.u.includes(s);});var tb=document.getElementById("fmTb");if(!tb)return;var h="";for(var i=0;i<Math.min(rows.length,300);i++){var v=rows[i];h+="<tr><td class='num'>"+v.p+"</td><td>"+v.u+"</td><td>"+(v.m||"—")+"</td><td>"+(v.l||"—")+"</td><td><span class='bg "+(added.has(v.p)?"green":"gray")+"'>"+(added.has(v.p)?"مضافة":"أصلية")+"</span></td><td><button class='btn btnd' style='font-size:10px;padding:4px 8px' data-dp='"+v.p+"'>حذف</button></td></tr>";}tb.innerHTML=h;document.querySelectorAll("[data-dp]").forEach(function(btn){btn.addEventListener("click",function(){var pl=this.dataset.dp;if(!confirm("حذف "+pl+"؟"))return;var ov2=loadOv();if(ov2.d.indexOf(pl)<0)ov2.d.push(pl);ov2.a=(ov2.a||[]).filter(function(v){return v.p!==pl;});saveOv(ov2);toast("حُذفت "+pl,"🗑️");renderPage();});});var fa=document.getElementById("btnFA");if(fa)fa.onclick=function(){var pl=(document.getElementById("fP")||{value:""}).value.trim();var us=(document.getElementById("fU")||{value:""}).value;var mk=(document.getElementById("fM")||{value:""}).value.trim();var lc=(document.getElementById("fL")||{value:""}).value.trim();var err=document.getElementById("fErr");err.textContent="";if(!pl){err.textContent="رقم اللوحة مطلوب";return;}if(!us){err.textContent="نوع الاستخدام مطلوب";return;}for(var i=0;i<AF.length;i++){if(AF[i].p===pl){err.textContent="هذه اللوحة موجودة مسبقاً";return;}}var nv={p:pl,u:us,m:mk,mo:"",l:lc};var ov2=loadOv();ov2.a=(ov2.a||[]);ov2.a.push(nv);ov2.d=(ov2.d||[]).filter(function(p){return p!==pl;});saveOv(ov2);toast("أُضيفت "+pl,"🚗");renderPage();};var fmsi=document.getElementById("fmS");if(fmsi)fmsi.oninput=rFmR;}
+function pDrvM(){
+  if(!ST_admin||!ST_admin.isOwner)return '<div class="card">'+es("🔒","للمالك فقط","")+"</div>";
+  var r='<div class="ph"><h1>👤 إدارة السائقين</h1><p>السائقون يختارون اسمهم من هذه القائمة عند الدخول.</p></div>'+
+    '<div class="card"><div class="ch"><h2>إضافة سائق جديد</h2></div><div class="fl"><label>الاسم</label><input type="text" id="dvN" placeholder="مثال: خالد العتيبي"></div><div id="dvErr" style="color:var(--rd);font-size:12px;margin-bottom:9px"></div><button class="btn btnp" id="btnDvA">➕ إضافة سائق</button></div>';
+  r+='<div class="card"><div class="ch"><h2>السائقون ('+DRIVERS_CACHE.length+')</h2></div>';
+  if(!DRIVERS_CACHE.length)r+=es("👥","لا يوجد سائقون مسجّلون بعد","السائقون يقدرون يكتبون اسمهم يدوياً لحد ما تضيفهم هنا");
+  else{
+    r+='<div class="tw"><table><thead><tr><th>الاسم</th><th></th></tr></thead><tbody>';
+    for(var i=0;i<DRIVERS_CACHE.length;i++){var n=DRIVERS_CACHE[i];
+      r+="<tr><td><b>"+n+"</b></td><td style='display:flex;gap:6px'><button class='btn btng' style='font-size:10px;padding:4px 8px' data-dvedit='"+i+"'>✏️ تعديل</button><button class='btn btnd' style='font-size:10px;padding:4px 8px' data-dvdel='"+i+"'>حذف</button></td></tr>";
+    }
+    r+="</tbody></table>";
+  }
+  r+="</div>";return r;
+}
+function bndDrvM(){
+  var add=document.getElementById("btnDvA");
+  if(add)add.onclick=function(){
+    var n=(document.getElementById("dvN")||{value:""}).value.trim();
+    var err=document.getElementById("dvErr");err.textContent="";
+    if(!n){err.textContent="الرجاء إدخال الاسم";return;}
+    if(DRIVERS_CACHE.indexOf(n)>=0){err.textContent="هذا الاسم مسجّل مسبقاً";return;}
+    var list=DRIVERS_CACHE.concat([n]);
+    fsDB.collection("drivers").doc("current").set({list:list}).then(function(){toast("أُضيف "+n,"✅");navTo("drvm");}).catch(function(){err.textContent="تعذّر الحفظ";});
+  };
+  document.querySelectorAll("[data-dvdel]").forEach(function(btn){btn.addEventListener("click",function(){
+    var i=parseInt(this.dataset.dvdel,10);
+    if(!confirm("حذف "+DRIVERS_CACHE[i]+"؟"))return;
+    var list=DRIVERS_CACHE.slice();list.splice(i,1);
+    fsDB.collection("drivers").doc("current").set({list:list}).then(function(){toast("تم الحذف","🗑️");navTo("drvm");});
+  });});
+  document.querySelectorAll("[data-dvedit]").forEach(function(btn){btn.addEventListener("click",function(){
+    var i=parseInt(this.dataset.dvedit,10);
+    var nn=prompt("الاسم الجديد:",DRIVERS_CACHE[i]);
+    if(nn===null)return;nn=nn.trim();if(!nn)return;
+    var list=DRIVERS_CACHE.slice();list[i]=nn;
+    fsDB.collection("drivers").doc("current").set({list:list}).then(function(){toast("تم التحديث","✅");navTo("drvm");});
+  });});
+}
+function pUsr(admins){if(!ST_admin||!ST_admin.isOwner)return '<div class="card">'+es("🔒","للمالك فقط","")+"</div>";var r='<div class="ph"><h1>إدارة المستخدمين</h1></div><div class="card"><div class="ch"><h2>إضافة مشرف جديد</h2></div><div class="fr"><div class="fl"><label>الاسم</label><input type="text" id="uN"></div><div class="fl"><label>البريد الإلكتروني</label><input type="email" id="uEm"></div></div><div class="fl"><label>كلمة المرور</label><input type="password" id="uP" placeholder="6 أحرف على الأقل"></div><div id="uErr" style="color:var(--rd);font-size:12px;margin-bottom:9px"></div><button class="btn btnp" id="btnUA">➕ إضافة المشرف</button></div><div class="card"><div class="ch"><h2>المستخدمون ('+admins.length+')</h2></div><div class="tw"><table><thead><tr><th>الاسم</th><th>البريد</th><th>الصلاحية</th><th></th></tr></thead><tbody>';for(var i=0;i<admins.length;i++){var u=admins[i];r+="<tr><td><b>"+u.n+"</b></td><td>"+(u.email||"—")+"</td><td><span class='bg "+(u.isOwner?"ow2":"blue")+"'>"+(u.isOwner?"مالك":"مشرف")+"</span></td><td style='display:flex;gap:6px;flex-wrap:wrap'><button class=\"btn btng\" style=\"font-size:10px;padding:4px 8px\" data-edid=\""+u.id+"\" data-edname=\""+u.n.replace(/"/g,"&quot;")+"\">✏️ تعديل</button>"+(u.isOwner?"":'<button class="btn btng" style="font-size:10px;padding:4px 8px" data-permid="'+u.id+'">🔑 صلاحيات</button><button class="btn btnd" style="font-size:10px;padding:4px 8px" data-rmid="'+u.id+'">إزالة</button>')+"</td></tr>";}return r+"</tbody></table></div></div>";}
+function bndUsr(){
+  document.querySelectorAll("[data-rmid]").forEach(function(btn){btn.addEventListener("click",function(){
+    var id=this.dataset.rmid;
+    fsDB.collection("admins").doc(id).delete().then(function(){toast("تمت الإزالة","✅");navTo("usr");}).catch(function(){toast("تعذّر الحذف","❌");});
+  });});
+  document.querySelectorAll("[data-edid]").forEach(function(btn){btn.addEventListener("click",function(){
+    var id=this.dataset.edid,cur=this.dataset.edname;
+    var nn=prompt("الاسم الجديد:",cur);
+    if(nn===null)return;nn=nn.trim();if(!nn)return;
+    fsDB.collection("admins").doc(id).update({name:nn}).then(function(){
+      if(ST_admin&&ST_admin.id===id)ST_admin.n=nn;
+      toast("تم تحديث الاسم","✅");navTo("usr");
+    }).catch(function(){toast("تعذّر التحديث","❌");});
+  });});
+  document.querySelectorAll("[data-permid]").forEach(function(btn){btn.addEventListener("click",function(){
+    var id=this.dataset.permid;
+    var admin=ADMINS_CACHE.filter(function(a){return a.id===id;})[0];
+    if(admin)openPerms(admin);
+  });});
+  var ua=document.getElementById("btnUA");
+  if(ua)ua.onclick=function(){
+    var name=(document.getElementById("uN")||{value:""}).value.trim();
+    var email=(document.getElementById("uEm")||{value:""}).value.trim();
+    var pass=(document.getElementById("uP")||{value:""}).value;
+    var err=document.getElementById("uErr");err.textContent="";
+    if(!name){err.textContent="الرجاء إدخال الاسم";return;}
+    if(!email){err.textContent="الرجاء إدخال البريد الإلكتروني";return;}
+    if(pass.length<6){err.textContent="6 أحرف على الأقل";return;}
+    ua.disabled=true;
+    var secApp=firebase.apps.filter(function(a){return a.name==="Secondary";})[0]||firebase.initializeApp(FIREBASE_CONFIG,"Secondary");
+    var secAuth=firebase.auth(secApp);
+    secAuth.createUserWithEmailAndPassword(email,pass).then(function(cred){
+      var newUid=cred.user.uid;
+      return secAuth.signOut().then(function(){
+        return fsDB.collection("admins").doc(newUid).set({name:name,email:email,isOwner:false,createdAt:firebase.firestore.FieldValue.serverTimestamp()});
+      });
+    }).then(function(){toast("أُضيف "+name,"✅");ua.disabled=false;navTo("usr");})
+    .catch(function(e){err.textContent=authErr(e);ua.disabled=false;});
+  };
+}
+function openPerms(admin){
+  var current=admin.pages||AN_KEYS.slice();
+  var modal=document.createElement("div");
+  modal.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;";
+  var h='<div style="background:var(--p1);border:1px solid var(--brd);border-radius:12px;padding:18px;max-width:360px;width:100%">'+
+    '<div style="font-weight:800;font-size:14px;margin-bottom:4px">صلاحيات '+admin.n+'</div>'+
+    '<div style="color:var(--dm);font-size:11.5px;margin-bottom:12px">اختر الصفحات اللي يقدر يشوفها هذا المشرف — تقدر تغيّرها في أي وقت</div>';
+  for(var i=0;i<AN.length;i++){
+    var key=AN[i][0],label=AN[i][2]+" "+AN[i][1];
+    var checked=current.indexOf(key)>=0?"checked":"";
+    h+='<label class="rl"><input type="checkbox" data-permkey="'+key+'" '+checked+'> '+label+'</label>';
+  }
+  h+='<div style="display:flex;gap:8px;margin-top:12px"><button class="btn btnp" id="btnPermSave" style="flex:1">حفظ</button><button class="btn btng" id="btnPermClose" style="flex:1">إلغاء</button></div></div>';
+  modal.innerHTML=h;
+  document.body.appendChild(modal);
+  document.getElementById("btnPermClose").onclick=function(){modal.remove();};
+  document.getElementById("btnPermSave").onclick=function(){
+    var selected=[];
+    modal.querySelectorAll("[data-permkey]").forEach(function(cb){if(cb.checked)selected.push(cb.dataset.permkey);});
+    fsDB.collection("admins").doc(admin.id).update({pages:selected}).then(function(){
+      toast("تم تحديث الصلاحيات","✅");modal.remove();navTo("usr");
+    }).catch(function(){toast("تعذّر الحفظ","❌");modal.remove();});
+  };
+}
+function pROI(logs){var a=agg(logs),w=a.avg==null?0:Math.max(0,a.avg),wc=a.tot*w*SAR,sv=wc*12*0.7;return '<div class="ph"><h1>الجدوى المالية</h1><p>بناءً على '+logs.length+' عملية.</p></div><div class="kg"><div class="kc kct"><div class="kb"></div><div class="kl">إجمالي اللترات</div><div class="kv">'+fmt(a.tot,0)+'</div></div><div class="kc kca"><div class="kb"></div><div class="kl">التكلفة (ريال)</div><div class="kv">'+fmt(a.tot*SAR,0)+'</div></div><div class="kc kcr"><div class="kb"></div><div class="kl">قيمة الإهدار</div><div class="kv">'+fmt(wc,0)+'</div></div><div class="kc kct"><div class="kb"></div><div class="kl">وفورات سنوية</div><div class="kv">'+fmt(sv,0)+'</div></div></div><div class="card"><div class="ch"><h2>متوسط الإهدار</h2></div><div style="font-size:26px;font-weight:800;color:'+(a.avg!=null&&Math.abs(a.avg)>0.2?"var(--rd)":"var(--tl)")+';">'+(a.avg!=null?pct(Math.abs(a.avg)):"—")+'</div></div>';}
+
+/* ── DRIVER MODE ── */
+function rDriver(){
+  document.getElementById("A").innerHTML=tb()+'<div class="dw" id="DP"></div>';
+  if(!ST_opName)rOpG();else rDE();
+}
+function rOpG(){
+  var p=document.getElementById("DP");if(!p)return;
+  var hasDrivers=DRIVERS_CACHE.length>0;
+  p.innerHTML='<div class="dc"><div class="dt">من أنت؟</div><div class="ds">'+(hasDrivers?"اختر اسمك من القائمة.":"اسمك يُسجَّل مع كل عملية.")+'</div>'+
+    '<div class="fl vp"><label>الاسم <span style="color:var(--rd)">*</span></label><input type="text" id="opI" placeholder="'+(hasDrivers?"اكتب للبحث عن اسمك...":"مثال: خالد العتيبي")+'" autocomplete="off" autofocus>'+
+    (hasDrivers?'<div class="vrs" id="opR"></div>':"")+
+    '</div><div style="color:var(--rd);font-size:12px;margin-bottom:9px" id="opE"></div><button class="sb" id="btnOG">متابعة →</button></div>';
+  function go(v){
+    v=(v!=null?v:(document.getElementById("opI").value||"")).trim();
+    if(!v){document.getElementById("opE").textContent="الرجاء إدخال الاسم";return;}
+    ST_opName=v;ST_drvName=v;setOp(v);render();
+  }
+  document.getElementById("btnOG").onclick=function(){go();};
+  var opi=document.getElementById("opI");
+  opi.addEventListener("keydown",function(e){if(e.key==="Enter")go();});
+  if(hasDrivers){
+    opi.oninput=function(){
+      var q=this.value.trim(),rb=document.getElementById("opR");if(!rb)return;
+      if(!q){rb.style.display="none";return;}
+      var matches=DRIVERS_CACHE.filter(function(n){return n.includes(q);}).slice(0,25);
+      if(!matches.length){rb.innerHTML='<div class="vr">لا نتائج — تقدر تكتب اسمك كامل وتضغط متابعة</div>';rb.style.display="block";return;}
+      var h="";for(var i=0;i<matches.length;i++)h+='<div class="vr" data-dn="'+matches[i]+'">'+matches[i]+"</div>";
+      rb.innerHTML=h;rb.style.display="block";
+      rb.querySelectorAll("[data-dn]").forEach(function(el){el.addEventListener("click",function(){rb.style.display="none";go(this.dataset.dn);});});
+    };
+    opi.addEventListener("focus",function(){if(this.value.trim())this.dispatchEvent(new Event("input"));});
+    document.addEventListener("click",function(e){if(!e.target.closest(".vp")){var r=document.getElementById("opR");if(r)r.style.display="none";}},{once:true});
+  }
+}
+
+/* Camera OCR helpers */
+function camBtn(fieldId){
+  return '<button type="button" class="cam-btn" data-field="'+fieldId+'" title="تصوير العداد">📷</button>';
+}
+function openCamera(fieldId){
+  var modal=document.createElement("div");
+  modal.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;";
+  modal.innerHTML='<div style="color:#fff;font-size:14px;font-weight:700">وجّه الكاميرا نحو العداد</div>'+
+    '<video id="camVid" autoplay playsinline style="max-width:340px;width:100%;border-radius:12px;border:2px solid var(--amb)"></video>'+
+    '<div style="display:flex;gap:12px">'+
+    '<button id="btnCap" style="padding:12px 28px;border-radius:10px;background:var(--amb);color:#1a1208;font-weight:800;font-size:15px;border:none;cursor:pointer">📸 التقاط</button>'+
+    '<button id="btnCamClose" style="padding:12px 20px;border-radius:10px;background:var(--p2);color:var(--dm);font-size:14px;border:1px solid var(--brd);cursor:pointer">إلغاء</button>'+
+    '</div>'+
+    '<canvas id="camCanvas" style="display:none"></canvas>'+
+    '<div id="camResult" style="color:var(--tl);font-size:13px;text-align:center;max-width:300px"></div>';
+  document.body.appendChild(modal);
+  var stream=null;
+  navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"},audio:false}).then(function(s){
+    stream=s;document.getElementById("camVid").srcObject=s;
+  }).catch(function(){
+    document.getElementById("camResult").innerHTML='<span style="color:var(--rd)">❌ تعذّر الوصول للكاميرا — أدخل القراءة يدوياً</span>';
+  });
+  function close(){if(stream)stream.getTracks().forEach(function(t){t.stop();});modal.remove();}
+  document.getElementById("btnCamClose").onclick=close;
+  document.getElementById("btnCap").onclick=function(){
+    var res=document.getElementById("camResult");
+    var ocrCanvas;
+    try{
+      var vid=document.getElementById("camVid");
+      var canvas=document.getElementById("camCanvas");
+      if(!vid.videoWidth||!vid.videoHeight){
+        res.innerHTML='<span style="color:var(--og)">⏳ الكاميرا لسا ما جهزت — انتظر ثانية وحاول مرة ثانية</span>';
+        return;
+      }
+      canvas.width=vid.videoWidth;canvas.height=vid.videoHeight;
+      canvas.getContext("2d").drawImage(vid,0,0,canvas.width,canvas.height);
+      /* Clone before OCR preprocessing mutates the canvas — the attached photo should stay a normal color image */
+      ocrCanvas=document.createElement("canvas");
+      ocrCanvas.width=canvas.width;ocrCanvas.height=canvas.height;
+      ocrCanvas.getContext("2d").drawImage(canvas,0,0);
+      compressCanvasToBlob(canvas,function(blob){if(blob)ST_capturedPhotos[fieldId]=blob;});
+    }catch(e){
+      console.error("Camera capture failed:",e);
+      res.innerHTML='<span style="color:var(--rd)">❌ تعذّر التقاط الصورة — أدخل الرقم يدوياً</span>';
+      return;
+    }
+    res.innerHTML="⏳ جارٍ تحميل أداة القراءة (أول مرة فقط، بعدها تكون محفوظة بجهازك)... <button id=\"btnSkipOcr\" style=\"display:block;margin:8px auto 0;background:none;border:none;color:var(--dm);text-decoration:underline;cursor:pointer;font-size:12px\">تخطي وإدخال يدوي</button>";
+    var skipped=false;
+    var skipBtn=document.getElementById("btnSkipOcr");
+    if(skipBtn)skipBtn.onclick=function(){skipped=true;res.innerHTML='<span style="color:var(--dm)">أدخل الرقم يدوياً بالحقل، ثم أغلق هذه النافذة.</span>';};
+    loadTesseract(function(failed){
+      if(skipped)return;
+      if(failed){res.innerHTML='<span style="color:var(--rd)">❌ تعذّر تحميل أداة القراءة — تأكد من الاتصال، أو أدخل الرقم يدوياً</span>';return;}
+      res.innerHTML="🔍 جارٍ قراءة الأرقام...";
+      extractNumber(ocrCanvas,function(num){
+        if(skipped)return;
+        if(num){
+          res.innerHTML='<b style="color:var(--tl);font-size:18px">'+num+'</b><br><button id="btnAccept" style="margin-top:8px;padding:8px 20px;border-radius:8px;background:var(--tl);color:#06231d;border:none;cursor:pointer;font-weight:700">✅ استخدام هذا الرقم</button>';
+          document.getElementById("btnAccept").onclick=function(){
+            var inp=document.getElementById(fieldId);
+            if(inp){inp.value=num;inp.dispatchEvent(new Event("input"));}
+            close();
+          };
+        } else {
+          res.innerHTML='<span style="color:var(--dm)">لم يتم التعرف على رقم بوضوح — قرّب الكاميرا وتأكد من الإضاءة، أو أدخل الرقم يدوياً.</span>';
+        }
+      });
+    });
+  };
+}
+/* OCR loads lazily — only downloaded the first time a driver actually uses the camera reader */
+var tesseractLoading=null;
+function loadTesseract(cb){
+  if(window.Tesseract){cb(false);return;}
+  if(tesseractLoading){tesseractLoading.push(cb);return;}
+  tesseractLoading=[cb];
+  var done=false;
+  var timer=setTimeout(function(){
+    if(done)return;done=true;
+    var cbs=tesseractLoading;tesseractLoading=null;
+    cbs.forEach(function(f){f(true);});
+  },20000);
+  var s=document.createElement("script");
+  s.src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
+  s.onload=function(){
+    if(done)return;done=true;clearTimeout(timer);
+    var cbs=tesseractLoading;tesseractLoading=null;cbs.forEach(function(f){f(false);});
+  };
+  s.onerror=function(){
+    if(done)return;done=true;clearTimeout(timer);
+    var cbs=tesseractLoading;tesseractLoading=null;cbs.forEach(function(f){f(true);});
+  };
+  document.head.appendChild(s);
+}
+/* Binarizes the frame (grayscale + Otsu threshold) — the standard fix for
+   digit-display OCR accuracy, since raw camera frames have uneven lighting
+   that confuses Tesseract far more than the digit shapes themselves do. */
+/* Downscale + JPEG-compress the captured frame before it's ever attached to a
+   log entry — a raw camera frame can be several MB, this keeps it well under
+   200KB while staying clear enough to verify a meter reading. */
+function compressCanvasToBlob(canvas,cb){
+  try{
+    var maxDim=1000;
+    var w=canvas.width,h=canvas.height;
+    var scale=Math.min(1,maxDim/Math.max(w,h));
+    var outW=Math.max(1,Math.round(w*scale)),outH=Math.max(1,Math.round(h*scale));
+    var out=document.createElement("canvas");
+    out.width=outW;out.height=outH;
+    out.getContext("2d").drawImage(canvas,0,0,outW,outH);
+    out.toBlob(function(blob){cb(blob);},"image/jpeg",0.7);
+  }catch(e){console.error("compressCanvasToBlob failed:",e);cb(null);}
+}
+function preprocessForOCR(canvas){
+  var ctx=canvas.getContext("2d");
+  var w=canvas.width,h=canvas.height;
+  var imgData=ctx.getImageData(0,0,w,h);
+  var data=imgData.data;
+  var n=w*h;
+  var gray=new Uint8ClampedArray(n);
+  var hist=new Array(256).fill(0);
+  for(var i=0;i<n;i++){
+    var g=Math.round(0.299*data[i*4]+0.587*data[i*4+1]+0.114*data[i*4+2]);
+    gray[i]=g;hist[g]++;
+  }
+  var sum=0;for(var t=0;t<256;t++)sum+=t*hist[t];
+  var sumB=0,wB=0,wF=0,maxVar=0,threshold=127;
+  for(var t2=0;t2<256;t2++){
+    wB+=hist[t2];if(wB===0)continue;
+    wF=n-wB;if(wF===0)break;
+    sumB+=t2*hist[t2];
+    var mB=sumB/wB,mF=(sum-sumB)/wF;
+    var varBetween=wB*wF*(mB-mF)*(mB-mF);
+    if(varBetween>maxVar){maxVar=varBetween;threshold=t2;}
+  }
+  for(var j=0;j<n;j++){
+    var v=gray[j]>threshold?255:0;
+    data[j*4]=data[j*4+1]=data[j*4+2]=v;
+  }
+  ctx.putImageData(imgData,0,0);
+}
+function extractNumber(canvas,cb){
+  var done=false;
+  var timer=setTimeout(function(){if(done)return;done=true;cb(null);},25000);
+  try{
+    preprocessForOCR(canvas);
+    Tesseract.createWorker("eng").then(function(worker){
+      return worker.setParameters({tessedit_char_whitelist:"0123456789",tessedit_pageseg_mode:"7"})
+        .then(function(){return worker.recognize(canvas);})
+        .then(function(result){
+          worker.terminate();
+          if(done)return;done=true;clearTimeout(timer);
+          var text=(result&&result.data&&result.data.text)||"";
+          var digits=text.replace(/[^0-9]/g,"");
+          cb(digits.length>=1&&digits.length<=8?digits:null);
+        }).catch(function(e){
+          worker.terminate();
+          throw e;
+        });
+    }).catch(function(e){
+      if(done)return;done=true;clearTimeout(timer);
+      console.error("OCR recognize failed:",e);
+      cb(null);
+    });
+  }catch(e){
+    if(done)return;done=true;clearTimeout(timer);
+    console.error("OCR exception:",e);
+    cb(null);
+  }
+}
+
+function rDE(){
+  var dp=document.getElementById("DP");if(!dp)return;
+  var v=ST_selV,ref=v?RM[v.u]:null,lRv=(v&&ST_lastReading)?ST_lastReading.lastCurr:null;
+  var recent="";
+  if(v&&ST_lastReading){
+    recent='<div class="dc"><div class="dt" style="font-size:13px">آخر قراءة مسجلة لهذه المركبة</div>'+
+      '<div class="rii"><div><div class="num" style="font-weight:700;font-size:12px">'+ST_lastReading.lastDate+" "+(ST_lastReading.lastTime||"")+'</div><div style="font-size:10.5px;color:var(--dm)">'+(ST_lastReading.lastDriverName||"—")+'</div></div>'+
+      '<div class="num" style="font-weight:700;font-size:13px">'+fmt(ST_lastReading.lastCurr,0)+"</div></div></div>";
+  }
+  dp.innerHTML='<div class="dc"><div class="dt">تسجيل تعبئة وقود</div>'+
+    '<div class="obar"><span style="font-size:12.5px;color:var(--dm)">👤 <b style="color:var(--tx)">'+ST_opName+'</b></span>'+
+    '<button style="font-size:11px;padding:5px 9px;border-radius:6px;background:var(--p2);border:1px solid var(--brd);color:var(--dm);cursor:pointer" onclick="goChOp()">تغيير</button></div>'+
+    '<div class="fl vp"><label>رقم اللوحة</label><input type="text" id="pS" placeholder="اكتب للبحث..." autocomplete="off" value="'+(v?v.p:"")+'">'+
+    '<div class="vrs" id="vR"></div></div>'+
+    (v?'<div class="vc"><div style="font-size:22px">'+(ref&&ref.u==="hr"?"🚜":"🚗")+'</div><div><div class="vpl">'+v.p+'</div><div class="vds">'+v.u+" · "+(v.m||"")+" · "+(v.l||"")+"</div></div></div>":"")+
+    (v?
+    '<div class="fr">'+
+    '<div class="fl"><label>القراءة السابقة ('+(ref&&ref.u==="hr"?"ساعة":"كم")+') '+camBtn("iPr")+'</label><input type="number" id="iPr" value="'+(lRv!=null?lRv:"")+'" placeholder="'+(lRv!=null?lRv:"أدخل القراءة")+'"></div>'+
+    '<div class="fl"><label>القراءة الحالية '+camBtn("iCr")+'</label><input type="number" id="iCr" placeholder="القراءة الآن"></div></div>'+
+    '<div class="fr">'+
+    '<div class="fl"><label>الوقود (لتر)</label><input type="number" id="iL" placeholder="مثال: 65"></div>'+
+    '<div class="fl"><label>المحطة / الموقع</label><input type="text" id="iSt" placeholder="اسم المحطة"></div></div>'+
+    '<div class="fl"><label>ملاحظات (اختياري)</label><textarea id="iNo" rows="2" placeholder="أي ملاحظة..."></textarea></div>'+
+    '<button class="sb" id="btnSb">✅ تسجيل العملية</button><div id="rA"></div>'
+    :'<div class="es"><span class="ei">🔍</span><div class="et">ابحث عن مركبتك</div></div>')+
+    "</div>"+recent;
+
+  /* Camera buttons */
+  document.querySelectorAll(".cam-btn").forEach(function(btn){
+    btn.addEventListener("click",function(){openCamera(this.dataset.field);});
+  });
+
+  /* Plate search */
+  var psi=document.getElementById("pS");
+  if(psi){
+    psi.oninput=function(){
+      var q=this.value.trim(),rb=document.getElementById("vR");if(!rb)return;
+      if(!q){rb.style.display="none";return;}
+      var matches=[];for(var i=0;i<AF.length&&matches.length<25;i++){if(AF[i].p.includes(q))matches.push(AF[i]);}
+      if(!matches.length){rb.innerHTML='<div class="vr">لا نتائج</div>';rb.style.display="block";return;}
+      var h="";for(var i=0;i<matches.length;i++){h+='<div class="vr" data-pvp="'+matches[i].p+'"><b>'+matches[i].p+'</b><span>'+matches[i].u+" · "+(matches[i].m||"")+"</span></div>";}
+      rb.innerHTML=h;rb.style.display="block";
+      rb.querySelectorAll("[data-pvp]").forEach(function(el){el.addEventListener("click",function(){
+        var picked=FP[this.dataset.pvp];
+        ST_selV=picked;ST_lastReading=null;rb.style.display="none";render();
+        if(fsDB){fsDB.collection("vehicles").doc(picked.p).get().then(function(doc){
+          if(ST_selV===picked){ST_lastReading=doc.exists?doc.data():null;render();}
+        });}
+      });});
+    };
+    psi.addEventListener("focus",function(){if(this.value.trim())this.dispatchEvent(new Event("input"));});
+  }
+  document.addEventListener("click",function(e){if(!e.target.closest(".vp")&&!e.target.closest(".cam-btn")){var r=document.getElementById("vR");if(r)r.style.display="none";}},{once:true});
+
+  /* Submit */
+  var sb=document.getElementById("btnSb");
+  if(sb&&v){sb.onclick=function(){
+    var prev=parseFloat((document.getElementById("iPr")||{value:""}).value);
+    var curr=parseFloat((document.getElementById("iCr")||{value:""}).value);
+    var liters=parseFloat((document.getElementById("iL")||{value:""}).value);
+    var station=(document.getElementById("iSt")||{value:""}).value;
+    var notes=(document.getElementById("iNo")||{value:""}).value;
+    if(isNaN(prev)||isNaN(curr)||isNaN(liters)||liters<=0||curr<=prev){toast("تأكد من صحة القراءات (الحالية أكبر من السابقة)","⚠️");return;}
+    sb.disabled=true;sb.textContent="جارٍ الحفظ...";
+    var c=calcE(ST_selV.p,prev,curr,liters);
+    var entry={plate:ST_selV.p,date:new Date().toISOString().slice(0,10),time:new Date().toTimeString().slice(0,5),prev:prev,curr:curr,liters:liters,station:station,notes:notes,driverName:ST_drvName,ar:c.ar,dev:c.dev,st:c.st,sl:c.sl,ref:c.ref,un:c.un,reviewed:false};
+    var photos={prev:ST_capturedPhotos.iPr||null,curr:ST_capturedPhotos.iCr||null};
+    saveLog(entry,photos,function(ok){
+      if(!ok){toast("تعذّر الحفظ","❌");sb.disabled=false;sb.textContent="✅ تسجيل العملية";return;}
+      toast("تم التسجيل بنجاح","✅");
+      ST_lastReading={lastCurr:curr,lastDate:entry.date,lastTime:entry.time,lastDriverName:entry.driverName};
+      ST_capturedPhotos={};
+      var ra=document.getElementById("rA");
+      if(ra){var mp2={green:{ic:"🟢",t:"استهلاك طبيعي",d:"قريب من المعدل المرجعي. ممتاز!"},yellow:{ic:"🟡",t:"انحراف بسيط",d:"ضمن النطاق المقبول."},orange:{ic:"🟠",t:"يحتاج مراجعة",d:"سيراجعه المشرف."},red:{ic:"🔴",t:"إهدار أو خطأ",d:"تأكد من الأرقام."},gray:{ic:"ℹ️",t:"تم التسجيل",d:"لا يوجد معدل مرجعي."}};var mx=mp2[c.st]||mp2.gray;ra.innerHTML='<div class="rtoast '+(c.st==="gray"?"green":c.st)+'"><div style="font-size:22px">'+mx.ic+'</div><div><div class="rtoast-t">'+mx.t+'</div><div class="rtoast-d">'+mx.d+(c.ar?" · معدلك: "+fmt(c.ar,2)+" مقابل "+fmt(c.ref,2):"")+"</div></div></div>";}
+      var iCr=document.getElementById("iCr"),iL=document.getElementById("iL"),iNo=document.getElementById("iNo");
+      if(iCr)iCr.value="";if(iL)iL.value="";if(iNo)iNo.value="";
+      sb.disabled=false;sb.textContent="✅ تسجيل العملية";
+    });
+  };}
+}
+
+/* ── Init ── */
+window.addEventListener("DOMContentLoaded",function(){
+  var ov=loadOv();applyOv(ov);
+  ST_opName=getOp();ST_drvName=ST_opName;
+  initFB();
+  render();
+});
+/* Cache the app shell so repeat opens cost near-zero data (Firebase's live socket still runs for real-time sync) */
+if("serviceWorker" in navigator){
+  window.addEventListener("load",function(){navigator.serviceWorker.register("./sw.js").catch(function(){});});
+}
+
+</script>
+</body></html>
