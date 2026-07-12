@@ -125,6 +125,14 @@ service cloud.firestore {
         && request.resource.data.plates is map;
     }
 
+    // Owner-set monthly fuel-cost budget per site/location.
+    match /siteBudgets/current {
+      allow read: if isSignedIn();
+      allow write: if isOwner()
+        && request.resource.data.keys().hasOnly(['budgets'])
+        && request.resource.data.budgets is map;
+    }
+
     // Maintenance / fault log, tied to a plate. Any admin/owner can add one;
     // only the owner can delete.
     match /maintenance/{id} {
@@ -185,6 +193,12 @@ service cloud.firestore {
       allow create: if isSignedIn()
         && request.resource.data.keys().hasOnly(['done'])
         && request.resource.data.done == true;
+      // Owner may separately tack on an Iqama expiry date here (rather than on
+      // the photo doc) precisely so checking for upcoming expiries stays a
+      // cheap read — no need to pull every driver's photo just to read a date.
+      allow update: if isOwner()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['iqamaExpiry'])
+        && request.resource.data.iqamaExpiry is string;
       allow delete: if isOwner();
     }
 
