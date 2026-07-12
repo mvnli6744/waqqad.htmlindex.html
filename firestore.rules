@@ -17,6 +17,13 @@ service cloud.firestore {
       return exists(/databases/$(database)/documents/config/lockdown) &&
         get(/databases/$(database)/documents/config/lockdown).data.locked == true;
     }
+    // A driver name with no driverAssignments doc is unrestricted (backward
+    // compatible with every driver that predates this feature). One with a doc
+    // may only log the plates listed in it.
+    function isAssignedPlate(driverName, plate) {
+      return !exists(/databases/$(database)/documents/driverAssignments/$(driverName)) ||
+        plate in get(/databases/$(database)/documents/driverAssignments/$(driverName)).data.plates;
+    }
 
     // Admin/owner roster, keyed by Firebase Auth uid. Only an existing owner may
     // add/remove/edit entries here.
@@ -41,7 +48,7 @@ service cloud.firestore {
     match /logs/{id} {
       allow get: if isSignedIn();
       allow list: if isAdminOrOwner();
-      allow create: if isSignedIn() && (isAdminOrOwner() || !isLocked())
+      allow create: if isSignedIn() && (isAdminOrOwner() || (!isLocked() && isAssignedPlate(request.resource.data.driverName, request.resource.data.plate)))
         && request.resource.data.keys().hasOnly(['plate','date','time','prev','curr','liters','station','notes','driverName','ar','dev','st','sl','ref','un','reviewed','createdAt','photoPrev','photoCurr'])
         && request.resource.data.plate is string && request.resource.data.plate.size() > 0 && request.resource.data.plate.size() < 40
         && request.resource.data.driverName is string && request.resource.data.driverName.size() > 0 && request.resource.data.driverName.size() < 100
@@ -115,6 +122,18 @@ service cloud.firestore {
         && request.resource.data.at == request.time;
     }
 
+    // Owner-set restriction on which plates a driver name may log fuel for.
+    // Readable by any signed-in client so a driver's own client can filter its
+    // plate search to only what it's allowed to submit (server-side enforcement
+    // is the isAssignedPlate() check on logs/{id} create, this is just UX).
+    match /driverAssignments/{name} {
+      allow read: if isSignedIn();
+      allow write: if isOwner()
+        && request.resource.data.keys().hasOnly(['plates'])
+        && request.resource.data.plates is list
+        && request.resource.data.plates.size() > 0 && request.resource.data.plates.size() < 500;
+    }
+
     // Lightweight flag a driver's own client can check ("has an Iqama photo
     // already been captured under this name?") without ever reading the photo
     // itself — the mandatory-on-first-login capture flow depends on this being
@@ -127,17 +146,26 @@ service cloud.firestore {
       allow delete: if isOwner();
     }
 
-    // The actual Iqama photo, base64-encoded directly in the doc (no Storage /
-    // Blaze plan needed). Only admin/owner can read it back; captured once per
-    // driver name and immutable afterward (no update rule) — the owner can
-    // delete to force a re-capture (e.g. a renewed Iqama).
+    // The actual Iqama photo + 4-digit login PIN, base64/plain directly in the
+    // doc (no Storage / Blaze plan needed). Only admin/owner can read it back;
+    // captured once per driver name — the owner can delete to force a
+    // re-capture (e.g. a renewed Iqama or a forgotten PIN).
+    //
+    // PIN verification never lets a driver's client read the real pin: the
+    // client "guesses" by writing that guess into the pinCheck scratch field,
+    // and the update below only succeeds if the guess equals the stored pin —
+    // a permission-denied error on that write IS the "wrong PIN" signal.
     match /driverIds/{name} {
       allow read: if isAdminOrOwner();
       allow create: if isSignedIn()
-        && request.resource.data.keys().hasOnly(['name','photo','capturedAt'])
+        && request.resource.data.keys().hasOnly(['name','photo','pin','capturedAt'])
         && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() < 100
         && request.resource.data.photo is string && request.resource.data.photo.size() > 0 && request.resource.data.photo.size() < 900000
+        && request.resource.data.pin is string && request.resource.data.pin.matches('^[0-9]{4}$')
         && request.resource.data.capturedAt == request.time;
+      allow update: if isSignedIn()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pinCheck'])
+        && request.resource.data.pinCheck == resource.data.pin;
       allow delete: if isOwner();
     }
 
