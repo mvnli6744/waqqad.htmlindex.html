@@ -116,6 +116,15 @@ service cloud.firestore {
         && request.resource.data.overrides is map;
     }
 
+    // Per-plate document-expiry overrides (renewed insurance/istimara/TUV
+    // dates), on top of the built-in table baked into the app.
+    match /docOverrides/current {
+      allow read: if isSignedIn();
+      allow write: if isAdminOrOwner()
+        && request.resource.data.keys().hasOnly(['plates'])
+        && request.resource.data.plates is map;
+    }
+
     // Maintenance / fault log, tied to a plate. Any admin/owner can add one;
     // only the owner can delete.
     match /maintenance/{id} {
