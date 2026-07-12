@@ -115,6 +115,32 @@ service cloud.firestore {
         && request.resource.data.at == request.time;
     }
 
+    // Lightweight flag a driver's own client can check ("has an Iqama photo
+    // already been captured under this name?") without ever reading the photo
+    // itself — the mandatory-on-first-login capture flow depends on this being
+    // readable by any signed-in driver, unlike driverIds below.
+    match /driverIdFlags/{name} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.keys().hasOnly(['done'])
+        && request.resource.data.done == true;
+      allow delete: if isOwner();
+    }
+
+    // The actual Iqama photo, base64-encoded directly in the doc (no Storage /
+    // Blaze plan needed). Only admin/owner can read it back; captured once per
+    // driver name and immutable afterward (no update rule) — the owner can
+    // delete to force a re-capture (e.g. a renewed Iqama).
+    match /driverIds/{name} {
+      allow read: if isAdminOrOwner();
+      allow create: if isSignedIn()
+        && request.resource.data.keys().hasOnly(['name','photo','capturedAt'])
+        && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() < 100
+        && request.resource.data.photo is string && request.resource.data.photo.size() > 0 && request.resource.data.photo.size() < 900000
+        && request.resource.data.capturedAt == request.time;
+      allow delete: if isOwner();
+    }
+
     // Append-only trail of privileged actions (who changed/deleted/edited what,
     // and when). Any admin/owner may append an entry when they perform an
     // action; only the owner can read the trail back. No update/delete —
