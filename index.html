@@ -142,10 +142,33 @@ var SAR_PETROL=2.18, SAR_DIESEL=1.79;
 function isCarPlate(plate){var v=FP[plate];return !!(v&&v.u&&CAR_USAGE_TYPES[v.u]);}
 function fuelPriceForPlate(plate){return isCarPlate(plate)?SAR_PETROL:SAR_DIESEL;}
 function fuelTypeLabel(plate){return isCarPlate(plate)?"بنزين 91":"ديزل";}
+/* Realistic max tank size per usage type (liters) — a fill-up claiming more
+   than this is almost certainly a typo or an attempt to siphon fuel under
+   cover of a legitimate-looking entry. Unlisted types fall back to a generic
+   car/equipment default. */
+var TANK_CAP_DEFAULT_CAR=100, TANK_CAP_DEFAULT_EQUIP=500;
+var TANK_CAP={
+  "سيارة بكب 1 كابينة":100,"سيارة بكب 2 كابينة":100,"سيارة بكب 2 كابينة   4x4":100,
+  "سيارة ام يو اكس":90,"سيارة بيجاس":60,"سيارة اكسنت":60,"سيارة  النترا":65,
+  "سيارة  كرولا":60,"سيارة  RAV 4":70,"سيارة فورتشنر":80,"سيارة فورشنر":80,"سيارة تاهو":100,
+  "قلاب دينا صغير":150,"ديانا 1 كابينة صبدوق":150,"ديانا 2 كابينة":150,"ايسوزو":150,
+  "باص":300,"سطحة":400,"سلة هوائية 12 م":300,"سلة هوائية 14م":300,
+  "ونش 7.5 طن":400,"ونش 8 طن":400,"ونش 10 طن":450,"ونش 21 طن":500,
+  "شاحنة قلاب نقل كبير":500,"سيارة نقل مواد (تريلا) اكثر من 10 طن":600,
+  "وايت مياه":500,"خلاطة اسمنت":400,
+  "حفار باك هول":400,"حفار للحفريات الدقيقة ( ترنشر )":400,
+  "شيول صغير بوبكات بكت":300,"شيول كبير":900,
+  "رصاصة اسفلت صغير":300,"حفار أعمدة Digger":300,"رافعة شوكية":300,"هانشا":300,"FLEX":300
+};
+function tankCapFor(plate){
+  var v=FP[plate];
+  if(v&&v.u&&TANK_CAP[v.u]!=null)return TANK_CAP[v.u];
+  return isCarPlate(plate)?TANK_CAP_DEFAULT_CAR:TANK_CAP_DEFAULT_EQUIP;
+}
 var AF=[].concat(FD), FP={};
 var fbDB=null, fbReady=false, fsDB=null;
 var CUR_USER=null;
-var LOGS_CACHE=[], ADMINS_CACHE=[], OV_CACHE={a:[],d:[]}, DRIVERS_CACHE=[];
+var LOGS_CACHE=[], ADMINS_CACHE=[], OV_CACHE={a:[],d:[]}, DRIVERS_CACHE=[], STATIONS_CACHE=[];
 var RM_BASE=RM, RM_OV_CACHE={}, MAINT_CACHE=[], AUDIT_CACHE=[];
 var LOCKDOWN=false;
 
@@ -198,6 +221,10 @@ function initFB(){
       },function(){/* not signed in yet — will refire once auth resolves */});
       fsDB.collection("drivers").doc("current").onSnapshot(function(doc){
         DRIVERS_CACHE=doc.exists?(doc.data().list||[]):[];
+        if(document.getElementById("MP"))renderPage();
+      },function(){});
+      fsDB.collection("stations").doc("current").onSnapshot(function(doc){
+        STATIONS_CACHE=doc.exists?(doc.data().list||[]):[];
         if(document.getElementById("MP"))renderPage();
       },function(){});
       fsDB.collection("refRates").doc("current").onSnapshot(function(doc){
@@ -298,28 +325,17 @@ function saveLog(entry,photos,cb){
   if(ST_role==="driver"&&LOCKDOWN){toast("تسجيل الدخول للسائقين موقوف مؤقتاً من الإدارة","🔒");if(cb)cb(false);return;}
   var ref=fsDB.collection("logs").doc();
   var vRef=fsDB.collection("vehicles").doc(entry.plate);
+  /* Meter photos are attached as base64 strings directly in the log doc — same
+     free, Blaze-free technique proven with the Iqama photo — no Storage upload
+     step, so there's nothing here that can fail and block the actual record. */
   var photoFields={};
-  var uploads=[];
-  var storageOn=typeof firebase.storage==="function"; /* Storage SDK isn't loaded while the feature is off — skip cleanly instead of throwing */
-  /* Photo attachment is best-effort: a Storage hiccup (or Storage not being
-     enabled at all) must never block saving the actual fuel record. */
-  if(storageOn&&photos&&photos.prev)uploads.push(
-    firebase.storage().ref("logPhotos/"+ref.id+"/prev.jpg").put(photos.prev,{contentType:"image/jpeg"})
-      .then(function(snap){return snap.ref.getDownloadURL();}).then(function(url){photoFields.photoPrev=url;})
-      .catch(function(e){console.error("photo upload (prev) failed, saving entry without it:",e);})
-  );
-  if(storageOn&&photos&&photos.curr)uploads.push(
-    firebase.storage().ref("logPhotos/"+ref.id+"/curr.jpg").put(photos.curr,{contentType:"image/jpeg"})
-      .then(function(snap){return snap.ref.getDownloadURL();}).then(function(url){photoFields.photoCurr=url;})
-      .catch(function(e){console.error("photo upload (curr) failed, saving entry without it:",e);})
-  );
-  Promise.all(uploads).then(function(){
-    var data=Object.assign({},entry,photoFields,{createdAt:firebase.firestore.FieldValue.serverTimestamp()});
-    var batch=fsDB.batch();
-    batch.set(ref,data);
-    batch.set(vRef,{lastCurr:entry.curr,lastDate:entry.date,lastTime:entry.time||"",lastDriverName:entry.driverName||""});
-    return batch.commit();
-  }).then(function(){if(cb)cb(true);}).catch(function(e){console.error("saveLog failed:",e);if(cb)cb(false);});
+  if(photos&&photos.prev)photoFields.photoPrev=photos.prev;
+  if(photos&&photos.curr)photoFields.photoCurr=photos.curr;
+  var data=Object.assign({},entry,photoFields,{createdAt:firebase.firestore.FieldValue.serverTimestamp()});
+  var batch=fsDB.batch();
+  batch.set(ref,data);
+  batch.set(vRef,{lastCurr:entry.curr,lastDate:entry.date,lastTime:entry.time||"",lastDriverName:entry.driverName||""});
+  batch.commit().then(function(){if(cb)cb(true);}).catch(function(e){console.error("saveLog failed:",e);if(cb)cb(false);});
 }
 function patchLog(e){if(fbReady&&fsDB)fsDB.collection("logs").doc(e.id).update({reviewed:e.reviewed});}
 
@@ -832,6 +848,13 @@ function pFmg(){
   var rmkeys=Object.keys(RM);for(var i=0;i<rmkeys.length;i++)r+="<option>"+rmkeys[i]+"</option>";
   r+='<option value="أخرى">أخرى</option></select></div></div><div class="fr"><div class="fl"><label>الصانع</label><input type="text" id="fM"></div><div class="fl"><label>الموقع</label><input type="text" id="fL"></div></div><div id="fErr" style="color:var(--rd);font-size:12px;margin-bottom:9px"></div><button class="btn btnp" id="btnFA">➕ إضافة المركبة</button></div>';
   r+='<div class="card"><div class="ch"><h2>📥 استيراد جماعي (CSV)</h2></div><p style="font-size:11.5px;color:var(--dm);margin-bottom:8px">ملف CSV بالأعمدة بهذا الترتيب: اللوحة، الاستخدام، الصانع، الموقع (سطر العناوين اختياري). اللوحات الموجودة مسبقاً يتم تحديث بياناتها.</p><input type="file" id="fCsv" accept=".csv,text/csv"><div id="fCsvMsg" style="font-size:11.5px;margin-top:8px;color:var(--dm)"></div></div>';
+  r+='<div class="card"><div class="ch"><h2>🛢️ المحطات المعتمدة ('+STATIONS_CACHE.length+')</h2></div><p style="font-size:11.5px;color:var(--dm);margin-bottom:8px">لو أضفت محطات هنا، السائق يختار من قائمة بدل الكتابة الحرة — يقلل التلاعب بمكان التعبئة. تركها فاضية يبقي الحقل نص حر كالسابق.</p><div class="fr"><div class="fl"><label>اسم المحطة</label><input type="text" id="stN" placeholder="مثال: محطة الرياض الرئيسية"></div></div><div id="stErr" style="color:var(--rd);font-size:12px;margin-bottom:9px"></div><button class="btn btnp" id="btnStA">➕ إضافة محطة</button>';
+  if(STATIONS_CACHE.length){
+    r+='<div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:6px">';
+    for(var si=0;si<STATIONS_CACHE.length;si++)r+='<span class="bg gray" style="display:inline-flex;align-items:center;gap:6px;padding:5px 8px">'+STATIONS_CACHE[si]+' <button data-stdel="'+si+'" style="background:none;border:none;color:var(--rd);cursor:pointer;font-size:12px;padding:0">✕</button></span>';
+    r+="</div>";
+  }
+  r+="</div>";
   r+='<div class="card"><div class="ch"><h2>المركبات ('+AF.length+')</h2><span style="font-size:10.5px;color:var(--fn)">'+del.size+' محذوفة</span></div><div class="tbar" style="margin-bottom:10px"><input class="ti" id="fmS" placeholder="ابحث..."></div><div class="tw" style="max-height:360px;overflow-y:auto"><table><thead><tr><th>اللوحة</th><th>الاستخدام</th><th>الصانع</th><th>الموقع</th><th>المصدر</th><th></th></tr></thead><tbody id="fmTb"></tbody></table></div></div>';
   return r;
 }
@@ -890,7 +913,23 @@ function handleFleetCsv(e){
   };
   reader.readAsText(file,"UTF-8");
 }
-function rFmR(){var ov=loadOv();var added=new Set((ov.a||[]).map(function(v){return v.p;}));var s=(document.getElementById("fmS")||{value:""}).value.trim();var rows=AF.filter(function(v){return !s||v.p.includes(s)||v.u.includes(s);});var tb=document.getElementById("fmTb");if(!tb)return;var h="";for(var i=0;i<Math.min(rows.length,300);i++){var v=rows[i];h+="<tr><td class='num'>"+v.p+"</td><td>"+v.u+"</td><td>"+(v.m||"—")+"</td><td>"+(v.l||"—")+"</td><td><span class='bg "+(added.has(v.p)?"green":"gray")+"'>"+(added.has(v.p)?"مضافة":"أصلية")+"</span></td><td><button class='btn btnd' style='font-size:10px;padding:4px 8px' data-dp='"+v.p+"'>حذف</button></td></tr>";}tb.innerHTML=h;document.querySelectorAll("[data-dp]").forEach(function(btn){btn.addEventListener("click",function(){var pl=this.dataset.dp;if(!confirm("حذف "+pl+"؟"))return;var ov2=loadOv();if(ov2.d.indexOf(pl)<0)ov2.d.push(pl);ov2.a=(ov2.a||[]).filter(function(v){return v.p!==pl;});saveOv(ov2);logAudit("حذف مركبة من الأسطول",pl);toast("حُذفت "+pl,"🗑️");renderPage();});});var fa=document.getElementById("btnFA");if(fa)fa.onclick=function(){var pl=(document.getElementById("fP")||{value:""}).value.trim();var us=(document.getElementById("fU")||{value:""}).value;var mk=(document.getElementById("fM")||{value:""}).value.trim();var lc=(document.getElementById("fL")||{value:""}).value.trim();var err=document.getElementById("fErr");err.textContent="";if(!pl){err.textContent="رقم اللوحة مطلوب";return;}if(!us){err.textContent="نوع الاستخدام مطلوب";return;}for(var i=0;i<AF.length;i++){if(AF[i].p===pl){err.textContent="هذه اللوحة موجودة مسبقاً";return;}}var nv={p:pl,u:us,m:mk,mo:"",l:lc};var ov2=loadOv();ov2.a=(ov2.a||[]);ov2.a.push(nv);ov2.d=(ov2.d||[]).filter(function(p){return p!==pl;});saveOv(ov2);logAudit("إضافة مركبة للأسطول",pl);toast("أُضيفت "+pl,"🚗");renderPage();};var fmsi=document.getElementById("fmS");if(fmsi)fmsi.oninput=rFmR;var fcsv=document.getElementById("fCsv");if(fcsv)fcsv.onchange=handleFleetCsv;}
+function rFmR(){var ov=loadOv();var added=new Set((ov.a||[]).map(function(v){return v.p;}));var s=(document.getElementById("fmS")||{value:""}).value.trim();var rows=AF.filter(function(v){return !s||v.p.includes(s)||v.u.includes(s);});var tb=document.getElementById("fmTb");if(!tb)return;var h="";for(var i=0;i<Math.min(rows.length,300);i++){var v=rows[i];h+="<tr><td class='num'>"+v.p+"</td><td>"+v.u+"</td><td>"+(v.m||"—")+"</td><td>"+(v.l||"—")+"</td><td><span class='bg "+(added.has(v.p)?"green":"gray")+"'>"+(added.has(v.p)?"مضافة":"أصلية")+"</span></td><td><button class='btn btnd' style='font-size:10px;padding:4px 8px' data-dp='"+v.p+"'>حذف</button></td></tr>";}tb.innerHTML=h;document.querySelectorAll("[data-dp]").forEach(function(btn){btn.addEventListener("click",function(){var pl=this.dataset.dp;if(!confirm("حذف "+pl+"؟"))return;var ov2=loadOv();if(ov2.d.indexOf(pl)<0)ov2.d.push(pl);ov2.a=(ov2.a||[]).filter(function(v){return v.p!==pl;});saveOv(ov2);logAudit("حذف مركبة من الأسطول",pl);toast("حُذفت "+pl,"🗑️");renderPage();});});var fa=document.getElementById("btnFA");if(fa)fa.onclick=function(){var pl=(document.getElementById("fP")||{value:""}).value.trim();var us=(document.getElementById("fU")||{value:""}).value;var mk=(document.getElementById("fM")||{value:""}).value.trim();var lc=(document.getElementById("fL")||{value:""}).value.trim();var err=document.getElementById("fErr");err.textContent="";if(!pl){err.textContent="رقم اللوحة مطلوب";return;}if(!us){err.textContent="نوع الاستخدام مطلوب";return;}for(var i=0;i<AF.length;i++){if(AF[i].p===pl){err.textContent="هذه اللوحة موجودة مسبقاً";return;}}var nv={p:pl,u:us,m:mk,mo:"",l:lc};var ov2=loadOv();ov2.a=(ov2.a||[]);ov2.a.push(nv);ov2.d=(ov2.d||[]).filter(function(p){return p!==pl;});saveOv(ov2);logAudit("إضافة مركبة للأسطول",pl);toast("أُضيفت "+pl,"🚗");renderPage();};var fmsi=document.getElementById("fmS");if(fmsi)fmsi.oninput=rFmR;var fcsv=document.getElementById("fCsv");if(fcsv)fcsv.onchange=handleFleetCsv;
+  var stA=document.getElementById("btnStA");
+  if(stA)stA.onclick=function(){
+    var n=(document.getElementById("stN")||{value:""}).value.trim();
+    var err=document.getElementById("stErr");err.textContent="";
+    if(!n){err.textContent="اسم المحطة مطلوب";return;}
+    if(STATIONS_CACHE.indexOf(n)>=0){err.textContent="هذه المحطة مضافة مسبقاً";return;}
+    var list=STATIONS_CACHE.concat([n]);
+    fsDB.collection("stations").doc("current").set({list:list}).then(function(){logAudit("إضافة محطة معتمدة",n);toast("أُضيفت "+n,"✅");navTo("fmg");}).catch(function(){err.textContent="تعذّر الحفظ";});
+  };
+  document.querySelectorAll("[data-stdel]").forEach(function(btn){btn.addEventListener("click",function(){
+    var i=parseInt(this.dataset.stdel,10);var sn=STATIONS_CACHE[i];
+    if(!confirm("حذف "+sn+"؟"))return;
+    var list=STATIONS_CACHE.slice();list.splice(i,1);
+    fsDB.collection("stations").doc("current").set({list:list}).then(function(){logAudit("حذف محطة معتمدة",sn);toast("تم الحذف","🗑️");navTo("fmg");});
+  });});
+}
 function pDrvM(){
   if(!ST_admin||!ST_admin.isOwner)return '<div class="card">'+es("🔒","للمالك فقط","")+"</div>";
   var r='<div class="ph"><h1>👤 إدارة السائقين</h1><p>السائقون يختارون اسمهم من هذه القائمة عند الدخول.</p></div>'+
@@ -1376,7 +1415,7 @@ function openCamera(fieldId){
       ocrCanvas=document.createElement("canvas");
       ocrCanvas.width=canvas.width;ocrCanvas.height=canvas.height;
       ocrCanvas.getContext("2d").drawImage(canvas,0,0);
-      compressCanvasToBlob(canvas,function(blob){if(blob)ST_capturedPhotos[fieldId]=blob;});
+      compressCanvasToDataURL(canvas,700,0.5,function(dataUrl){if(dataUrl)ST_capturedPhotos[fieldId]=dataUrl;},300000);
     }catch(e){
       console.error("Camera capture failed:",e);
       res.innerHTML='<span style="color:var(--rd)">❌ تعذّر التقاط الصورة — أدخل الرقم يدوياً</span>';
@@ -1448,10 +1487,15 @@ function compressCanvasToBlob(canvas,cb){
     out.toBlob(function(blob){cb(blob);},"image/jpeg",0.7);
   }catch(e){console.error("compressCanvasToBlob failed:",e);cb(null);}
 }
-/* Iqama photos are stored as a base64 string directly inside the Firestore doc
-   (no Firebase Storage / Blaze plan needed) — squeezed under ~700KB so the
-   base64-inflated size stays safely below Firestore's 1MB document limit. */
-function compressCanvasToDataURL(canvas,maxDim,quality,cb){
+/* Photos are stored as a base64 string directly inside the Firestore doc (no
+   Firebase Storage / Blaze plan needed) — squeezed under maxBytes so the
+   base64-inflated size stays safely below Firestore's 1MB document limit.
+   Default budget assumes a SINGLE photo shares the doc (Iqama); callers that
+   can attach two photos to one doc (prev+curr meter shots) must pass a
+   tighter maxBytes so both fit together. */
+function compressCanvasToDataURL(canvas,maxDim,quality,cb,maxBytes){
+  maxBytes=maxBytes||900000;
+  var softLimit=Math.round(maxBytes*0.78);
   try{
     var w=canvas.width,h=canvas.height;
     var scale=Math.min(1,maxDim/Math.max(w,h));
@@ -1460,8 +1504,8 @@ function compressCanvasToDataURL(canvas,maxDim,quality,cb){
     out.width=outW;out.height=outH;
     out.getContext("2d").drawImage(canvas,0,0,outW,outH);
     var q=quality,url=out.toDataURL("image/jpeg",q),attempts=0;
-    while(url.length>700000&&attempts<4){q=q*0.7;url=out.toDataURL("image/jpeg",q);attempts++;}
-    cb(url.length<=900000?url:null);
+    while(url.length>softLimit&&attempts<5){q=q*0.7;url=out.toDataURL("image/jpeg",q);attempts++;}
+    cb(url.length<=maxBytes?url:null);
   }catch(e){console.error("compressCanvasToDataURL failed:",e);cb(null);}
 }
 function preprocessForOCR(canvas){
@@ -1543,7 +1587,10 @@ function rDE(){
     '<div class="fl"><label>القراءة الحالية '+camBtn("iCr")+'</label><input type="number" id="iCr" placeholder="القراءة الآن"></div></div>'+
     '<div class="fr">'+
     '<div class="fl"><label>الوقود (لتر)</label><input type="number" id="iL" placeholder="مثال: 65"></div>'+
-    '<div class="fl"><label>المحطة / الموقع</label><input type="text" id="iSt" placeholder="اسم المحطة"></div></div>'+
+    (STATIONS_CACHE.length?
+      '<div class="fl"><label>المحطة</label><select id="iSt"><option value="">اختر محطة</option>'+STATIONS_CACHE.map(function(s){return '<option value="'+s+'">'+s+'</option>';}).join("")+'<option value="__other__">أخرى (اكتب يدوياً)</option></select><input type="text" id="iStOther" placeholder="اسم المحطة" style="display:none;margin-top:6px"></div>'
+      :'<div class="fl"><label>المحطة / الموقع</label><input type="text" id="iSt" placeholder="اسم المحطة"></div>')+
+    "</div>"+
     '<div class="fl"><label>ملاحظات (اختياري)</label><textarea id="iNo" rows="2" placeholder="أي ملاحظة..."></textarea></div>'+
     '<button class="sb" id="btnSb">✅ تسجيل العملية</button><div id="rA"></div>'
     :'<div class="es"><span class="ei">🔍</span><div class="et">ابحث عن مركبتك</div></div>')+
@@ -1553,6 +1600,15 @@ function rDE(){
   document.querySelectorAll(".cam-btn").forEach(function(btn){
     btn.addEventListener("click",function(){openCamera(this.dataset.field);});
   });
+
+  /* Approved-station select — reveal free-text fallback for "أخرى" */
+  var stSel=document.getElementById("iSt");
+  if(stSel&&stSel.tagName==="SELECT"){
+    stSel.onchange=function(){
+      var o=document.getElementById("iStOther");
+      if(o)o.style.display=this.value==="__other__"?"block":"none";
+    };
+  }
 
   /* Plate search */
   var psi=document.getElementById("pS");
@@ -1583,8 +1639,11 @@ function rDE(){
     var curr=parseFloat((document.getElementById("iCr")||{value:""}).value);
     var liters=parseFloat((document.getElementById("iL")||{value:""}).value);
     var station=(document.getElementById("iSt")||{value:""}).value;
+    if(station==="__other__")station=(document.getElementById("iStOther")||{value:""}).value;
     var notes=(document.getElementById("iNo")||{value:""}).value;
     if(isNaN(prev)||isNaN(curr)||isNaN(liters)||liters<=0||curr<=prev){toast("تأكد من صحة القراءات (الحالية أكبر من السابقة)","⚠️");return;}
+    var cap=tankCapFor(ST_selV.p);
+    if(liters>cap){toast("الكمية ("+fmt(liters,0)+" لتر) تتجاوز السعة المتوقعة لهذا النوع (~"+cap+" لتر) — تأكد من الرقم أو تواصل مع المشرف","⚠️");return;}
     sb.disabled=true;sb.textContent="جارٍ الحفظ...";
     var c=calcE(ST_selV.p,prev,curr,liters);
     var entry={plate:ST_selV.p,date:new Date().toISOString().slice(0,10),time:new Date().toTimeString().slice(0,5),prev:prev,curr:curr,liters:liters,station:station,notes:notes,driverName:ST_drvName,ar:c.ar,dev:c.dev,st:c.st,sl:c.sl,ref:c.ref,un:c.un,reviewed:false};

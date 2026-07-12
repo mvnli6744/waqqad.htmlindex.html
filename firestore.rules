@@ -54,7 +54,12 @@ service cloud.firestore {
         && request.resource.data.driverName is string && request.resource.data.driverName.size() > 0 && request.resource.data.driverName.size() < 100
         && request.resource.data.prev is number && request.resource.data.curr is number
         && request.resource.data.curr > request.resource.data.prev
-        && request.resource.data.liters is number && request.resource.data.liters > 0 && request.resource.data.liters < 2000
+        // 1000L is a blunt fleet-wide backstop (the real per-vehicle tank-size
+        // check lives client-side, keyed by usage type); this just guarantees
+        // no write — tampered client or not — can claim an absurd fill-up.
+        && request.resource.data.liters is number && request.resource.data.liters > 0 && request.resource.data.liters < 1000
+        && (!('photoPrev' in request.resource.data) || (request.resource.data.photoPrev is string && request.resource.data.photoPrev.size() < 350000))
+        && (!('photoCurr' in request.resource.data) || (request.resource.data.photoCurr is string && request.resource.data.photoCurr.size() < 350000))
         && request.resource.data.reviewed == false
         && request.resource.data.createdAt == request.time;
       // Segregation of duties: a "red" (critical waste) entry can only be
@@ -90,6 +95,16 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly(['list'])
         && request.resource.data.list is list
         && request.resource.data.list.size() < 2000;
+    }
+
+    // Owner-managed approved fuel-station list (drivers pick from it instead
+    // of free text, to cut down on claims of purchases from unlisted stations).
+    match /stations/current {
+      allow read: if isSignedIn();
+      allow write: if isOwner()
+        && request.resource.data.keys().hasOnly(['list'])
+        && request.resource.data.list is list
+        && request.resource.data.list.size() < 500;
     }
 
     // Owner-calibrated reference consumption rates (overrides on top of the
