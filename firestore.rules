@@ -13,6 +13,10 @@ service cloud.firestore {
       return isAdminOrOwner() &&
         get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.isOwner == true;
     }
+    function isLocked() {
+      return exists(/databases/$(database)/documents/config/lockdown) &&
+        get(/databases/$(database)/documents/config/lockdown).data.locked == true;
+    }
 
     // Admin/owner roster, keyed by Firebase Auth uid. Only an existing owner may
     // add/remove/edit entries here.
@@ -37,7 +41,7 @@ service cloud.firestore {
     match /logs/{id} {
       allow get: if isSignedIn();
       allow list: if isAdminOrOwner();
-      allow create: if isSignedIn()
+      allow create: if isSignedIn() && (isAdminOrOwner() || !isLocked())
         && request.resource.data.keys().hasOnly(['plate','date','time','prev','curr','liters','station','notes','driverName','ar','dev','st','sl','ref','un','reviewed','createdAt','photoPrev','photoCurr'])
         && request.resource.data.plate is string && request.resource.data.plate.size() > 0 && request.resource.data.plate.size() < 40
         && request.resource.data.driverName is string && request.resource.data.driverName.size() > 0 && request.resource.data.driverName.size() < 100
@@ -98,6 +102,31 @@ service cloud.firestore {
         && request.resource.data.date is string && request.resource.data.date.size() < 20
         && request.resource.data.createdAt == request.time;
       allow delete: if isOwner();
+    }
+
+    // Emergency lockdown switch. Any signed-in client needs to read it (drivers'
+    // clients check it before allowing a login attempt), only the owner can flip it.
+    match /config/lockdown {
+      allow read: if isSignedIn();
+      allow write: if isOwner()
+        && request.resource.data.keys().hasOnly(['locked','by','at'])
+        && request.resource.data.locked is bool
+        && request.resource.data.by is string
+        && request.resource.data.at == request.time;
+    }
+
+    // Append-only trail of privileged actions (who changed/deleted/edited what,
+    // and when). Any admin/owner may append an entry when they perform an
+    // action; only the owner can read the trail back. No update/delete —
+    // immutable by design.
+    match /auditLog/{id} {
+      allow read: if isOwner();
+      allow create: if isAdminOrOwner()
+        && request.resource.data.keys().hasOnly(['actor','action','target','createdAt'])
+        && request.resource.data.actor is string && request.resource.data.actor.size() > 0 && request.resource.data.actor.size() < 200
+        && request.resource.data.action is string && request.resource.data.action.size() > 0 && request.resource.data.action.size() < 200
+        && request.resource.data.target is string && request.resource.data.target.size() < 500
+        && request.resource.data.createdAt == request.time;
     }
   }
 }
