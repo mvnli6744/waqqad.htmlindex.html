@@ -166,7 +166,7 @@ applyRMOv();
 
 /* ── State ── */
 var ST_role=null, ST_page="dash", ST_target=null, ST_admin=null;
-var ST_selV=null, ST_opName="", ST_drvName="", ST_lastReading=null;
+var ST_selV=null, ST_opName="", ST_drvName="", ST_lastReading=null, ST_assignedPlates=null;
 var ST_capturedPhotos={}; /* fieldId -> compressed JPEG Blob, cleared after each submit */
 
 /* ── Firebase init (SDK loads lazily, only when configured — saves data otherwise) ── */
@@ -375,8 +375,8 @@ function goDriver(){
   }).catch(function(){toast("تعذّر الدخول، تأكد من الاتصال","❌");});
 }
 function goBack(){ST_role=null;render();}
-function goLogout(){if(fbReady)firebase.auth().signOut();ST_role=null;ST_admin=null;ST_opName="";ST_selV=null;ST_lastReading=null;render();}
-function goChOp(){ST_opName="";setOp("");render();}
+function goLogout(){if(fbReady)firebase.auth().signOut();ST_role=null;ST_admin=null;ST_opName="";ST_selV=null;ST_lastReading=null;ST_assignedPlates=null;render();}
+function goChOp(){ST_opName="";ST_assignedPlates=null;setOp("");render();}
 function navTo(pg){ST_page=pg;renderPage();}
 
 /* ── Render root ── */
@@ -868,7 +868,7 @@ function pDrvM(){
   else{
     r+='<div class="tw"><table><thead><tr><th>الاسم</th><th></th></tr></thead><tbody>';
     for(var i=0;i<DRIVERS_CACHE.length;i++){var n=DRIVERS_CACHE[i];
-      r+="<tr><td><b>"+n+"</b></td><td style='display:flex;gap:6px;flex-wrap:wrap'><button class='btn btng' style='font-size:10px;padding:4px 8px' data-dvid='"+n+"'>📷 الإقامة</button><button class='btn btng' style='font-size:10px;padding:4px 8px' data-dvedit='"+i+"'>✏️ تعديل</button><button class='btn btnd' style='font-size:10px;padding:4px 8px' data-dvdel='"+i+"'>حذف</button></td></tr>";
+      r+="<tr><td><b>"+n+"</b></td><td style='display:flex;gap:6px;flex-wrap:wrap'><button class='btn btng' style='font-size:10px;padding:4px 8px' data-dvid='"+n+"'>📷 الإقامة</button><button class='btn btng' style='font-size:10px;padding:4px 8px' data-dassign='"+n+"'>🚛 المركبات</button><button class='btn btng' style='font-size:10px;padding:4px 8px' data-dvedit='"+i+"'>✏️ تعديل</button><button class='btn btnd' style='font-size:10px;padding:4px 8px' data-dvdel='"+i+"'>حذف</button></td></tr>";
     }
     r+="</tbody></table>";
   }
@@ -885,6 +885,7 @@ function bndDrvM(){
     fsDB.collection("drivers").doc("current").set({list:list}).then(function(){logAudit("إضافة سائق",n);toast("أُضيف "+n,"✅");navTo("drvm");}).catch(function(){err.textContent="تعذّر الحفظ";});
   };
   document.querySelectorAll("[data-dvid]").forEach(function(btn){btn.addEventListener("click",function(){openDriverIdView(this.dataset.dvid);});});
+  document.querySelectorAll("[data-dassign]").forEach(function(btn){btn.addEventListener("click",function(){openDriverAssignModal(this.dataset.dassign);});});
   document.querySelectorAll("[data-dvdel]").forEach(function(btn){btn.addEventListener("click",function(){
     var i=parseInt(this.dataset.dvdel,10);var dn=DRIVERS_CACHE[i];
     if(!confirm("حذف "+dn+"؟"))return;
@@ -916,6 +917,43 @@ function openDriverIdView(name){
     var when=d.capturedAt&&d.capturedAt.toDate?d.capturedAt.toDate().toISOString().slice(0,10):"—";
     body.innerHTML='<img src="'+d.photo+'" style="max-width:100%;border-radius:8px;border:1px solid var(--brd)"><div style="font-size:11px;color:var(--dm);margin-top:8px">تاريخ التصوير: '+when+'</div>';
   }).catch(function(){var body=document.getElementById("idvBody");if(body)body.textContent="تعذّر تحميل الصورة.";});
+}
+function openDriverAssignModal(name){
+  var modal=document.createElement("div");
+  modal.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto;";
+  modal.innerHTML='<div style="background:var(--p1);border:1px solid var(--brd);border-radius:12px;padding:16px;max-width:420px;width:100%;max-height:90vh;overflow-y:auto">'+
+    '<div style="font-weight:800;font-size:14px;margin-bottom:6px">🚛 مركبات مخصصة لـ'+name+'</div>'+
+    '<div style="font-size:11.5px;color:var(--dm);margin-bottom:10px">اترك القائمة فاضية = مسموح له بكل المركبات (الوضع الافتراضي). حدّد مركبات معيّنة لتقييده عليها فقط — يُمنع من تسجيل أي مركبة غيرها حتى لو حاول.</div>'+
+    '<input class="ti" id="daS" placeholder="ابحث عن لوحة..." style="width:100%;margin-bottom:8px">'+
+    '<div id="daList" style="max-height:260px;overflow-y:auto;border:1px solid var(--brd);border-radius:8px;padding:6px">⏳ جارٍ التحميل...</div>'+
+    '<div id="daMsg" style="font-size:11.5px;color:var(--dm);margin-top:8px"></div>'+
+    '<div style="display:flex;gap:8px;margin-top:10px"><button class="btn btnp" id="btnDaSave" style="flex:1">حفظ</button><button class="btn btng" id="btnDaClose" style="flex:1">إغلاق</button></div>'+
+    '</div>';
+  document.body.appendChild(modal);
+  document.getElementById("btnDaClose").onclick=function(){modal.remove();};
+  var selected={};
+  function renderList(q){
+    var list=document.getElementById("daList");if(!list)return;
+    var rows=AF.filter(function(v){return !q||v.p.includes(q)||v.u.includes(q);}).slice(0,60);
+    var h="";for(var i=0;i<rows.length;i++){var v=rows[i];h+='<label class="rl"><input type="checkbox" data-dap="'+v.p+'" '+(selected[v.p]?"checked":"")+'> '+v.p+' — '+v.u+'</label>';}
+    list.innerHTML=h||'<div style="font-size:12px;color:var(--fn);padding:8px">لا نتائج</div>';
+    list.querySelectorAll("[data-dap]").forEach(function(cb){cb.addEventListener("change",function(){if(this.checked)selected[this.dataset.dap]=true;else delete selected[this.dataset.dap];});});
+  }
+  fsDB.collection("driverAssignments").doc(name).get().then(function(doc){
+    var plates=doc.exists&&doc.data().plates?doc.data().plates:[];
+    plates.forEach(function(p){selected[p]=true;});
+    renderList("");
+  }).catch(function(){renderList("");});
+  document.getElementById("daS").oninput=function(){renderList(this.value.trim());};
+  document.getElementById("btnDaSave").onclick=function(){
+    var plates=Object.keys(selected);
+    var msg=document.getElementById("daMsg");msg.textContent="⏳ جارٍ الحفظ...";
+    var write=plates.length?fsDB.collection("driverAssignments").doc(name).set({plates:plates}):fsDB.collection("driverAssignments").doc(name).delete();
+    write.then(function(){
+      logAudit("تحديث مركبات مخصصة",name+": "+(plates.length?plates.join(", "):"بلا قيود"));
+      toast("تم الحفظ","✅");modal.remove();
+    }).catch(function(){msg.textContent="❌ تعذّر الحفظ";});
+  };
 }
 function pUsr(admins){if(!ST_admin||!ST_admin.isOwner)return '<div class="card">'+es("🔒","للمالك فقط","")+"</div>";var r='<div class="ph"><h1>إدارة المستخدمين</h1></div><div class="card"><div class="ch"><h2>إضافة مشرف جديد</h2></div><div class="fr"><div class="fl"><label>الاسم</label><input type="text" id="uN"></div><div class="fl"><label>البريد الإلكتروني</label><input type="email" id="uEm"></div></div><div class="fl"><label>كلمة المرور</label><input type="password" id="uP" placeholder="6 أحرف على الأقل"></div><div id="uErr" style="color:var(--rd);font-size:12px;margin-bottom:9px"></div><button class="btn btnp" id="btnUA">➕ إضافة المشرف</button></div><div class="card"><div class="ch"><h2>المستخدمون ('+admins.length+')</h2></div><div class="tw"><table><thead><tr><th>الاسم</th><th>البريد</th><th>الصلاحية</th><th></th></tr></thead><tbody>';for(var i=0;i<admins.length;i++){var u=admins[i];r+="<tr><td><b>"+u.n+"</b></td><td>"+(u.email||"—")+"</td><td><span class='bg "+(u.isOwner?"ow2":"blue")+"'>"+(u.isOwner?"مالك":"مشرف")+"</span></td><td style='display:flex;gap:6px;flex-wrap:wrap'><button class=\"btn btng\" style=\"font-size:10px;padding:4px 8px\" data-edid=\""+u.id+"\" data-edname=\""+u.n.replace(/"/g,"&quot;")+"\">✏️ تعديل</button>"+(u.isOwner?"":'<button class="btn btng" style="font-size:10px;padding:4px 8px" data-permid="'+u.id+'">🔑 صلاحيات</button><button class="btn btnd" style="font-size:10px;padding:4px 8px" data-rmid="'+u.id+'">إزالة</button>')+"</td></tr>";}return r+"</tbody></table></div></div>";}
 function bndUsr(){
@@ -1115,24 +1153,65 @@ function rDriver(){
    checked on every entry to the driver flow (not just first selection), since a
    restored session (ST_opName from localStorage) skips rOpG() entirely. Once a
    photo exists, this is a single cheap doc read; capture only runs once ever. */
+/* Owner may restrict a driver name to a specific list of plates
+   (driverAssignments/{name}) — fetched once right before the fuel-entry form
+   opens, never on every keystroke. No assignment doc means unrestricted. */
+function enterFuelFlow(name){
+  if(!fsDB){ST_assignedPlates=null;rDE();return;}
+  fsDB.collection("driverAssignments").doc(name).get().then(function(doc){
+    ST_assignedPlates=doc.exists&&doc.data().plates&&doc.data().plates.length?doc.data().plates:null;
+    rDE();
+  }).catch(function(){ST_assignedPlates=null;rDE();});
+}
 function checkDriverIdOnFile(name){
   var p=document.getElementById("DP");
   if(p)p.innerHTML='<div class="dc"><div class="dt">جارٍ التحقق...</div></div>';
-  if(!fsDB){rDE();return;}
+  if(!fsDB){enterFuelFlow(name);return;}
   /* Checked against a lightweight flag doc, not driverIds itself — a driver's
      client is only ever allowed to know THAT a photo exists, never read the
      photo back (that stays admin/owner-only). */
   fsDB.collection("driverIdFlags").doc(name).get().then(function(doc){
     if(!document.getElementById("DP"))return;
-    if(doc.exists)rDE();else renderIdCapture(name);
+    if(doc.exists)renderPinCheck(name);else renderIdCapture(name);
   }).catch(function(){if(document.getElementById("DP"))renderIdCapture(name);});
+}
+/* PIN is verified without ever letting a driver's client read the correct PIN
+   back: the client "guesses" by writing that guess into a scratch field, and a
+   Firestore rule only allows the write to succeed if the guess equals the
+   stored pin. A permission-denied error IS the "wrong PIN" signal. */
+function renderPinCheck(name){
+  var p=document.getElementById("DP");if(!p)return;
+  p.innerHTML='<div class="dc"><div class="dt">🔒 رمز الدخول</div>'+
+    '<div class="ds">أدخل رمزك المكوّن من ٤ أرقام للمتابعة باسم "'+name+'".</div>'+
+    '<div class="fl vp"><label>الرمز</label><input type="tel" inputmode="numeric" maxlength="4" id="pinI" placeholder="••••" autocomplete="off" autofocus style="letter-spacing:8px;font-size:20px;text-align:center"></div>'+
+    '<div style="color:var(--rd);font-size:12px;margin-bottom:9px" id="pinE"></div>'+
+    '<button class="sb" id="btnPinGo">دخول →</button>'+
+    '</div>';
+  var attempts=0;
+  function go(){
+    var v=(document.getElementById("pinI").value||"").trim();
+    var err=document.getElementById("pinE");err.textContent="";
+    if(!/^[0-9]{4}$/.test(v)){err.textContent="أدخل ٤ أرقام";return;}
+    var btn=document.getElementById("btnPinGo");btn.disabled=true;
+    fsDB.collection("driverIds").doc(name).update({pinCheck:v}).then(function(){
+      enterFuelFlow(name);
+    }).catch(function(){
+      attempts++;
+      err.textContent=attempts>=3?"رمز خاطئ عدة مرات — تواصل مع المشرف إذا نسيت رمزك":"رمز خاطئ، حاول مرة ثانية";
+      btn.disabled=false;
+    });
+  }
+  document.getElementById("btnPinGo").onclick=go;
+  document.getElementById("pinI").addEventListener("keydown",function(e){if(e.key==="Enter")go();});
 }
 function renderIdCapture(name){
   var p=document.getElementById("DP");if(!p)return;
-  p.innerHTML='<div class="dc"><div class="dt">📷 تصوير الإقامة</div>'+
-    '<div class="ds">أول مرة تسجّل باسم "'+name+'" — لازم تصوّر إقامتك مرة وحدة، تُحفظ بملفك ومايُطلب منك تصويرها مرة ثانية.</div>'+
+  p.innerHTML='<div class="dc"><div class="dt">📷 تصوير الإقامة وإنشاء رمز الدخول</div>'+
+    '<div class="ds">أول مرة تسجّل باسم "'+name+'" — لازم تصوّر إقامتك وتنشئ رمز دخول من ٤ أرقام، مرة وحدة فقط.</div>'+
     '<video id="idVid" autoplay playsinline style="width:100%;max-width:340px;border-radius:12px;border:2px solid var(--amb);margin:10px auto;display:block"></video>'+
     '<canvas id="idCanvas" style="display:none"></canvas>'+
+    '<div class="fr"><div class="fl"><label>أنشئ رمز دخول (٤ أرقام)</label><input type="tel" inputmode="numeric" maxlength="4" id="idPin1" placeholder="••••" autocomplete="off" style="letter-spacing:6px;text-align:center"></div>'+
+    '<div class="fl"><label>أعد كتابة الرمز</label><input type="tel" inputmode="numeric" maxlength="4" id="idPin2" placeholder="••••" autocomplete="off" style="letter-spacing:6px;text-align:center"></div></div>'+
     '<div id="idMsg" style="text-align:center;font-size:12.5px;color:var(--dm);margin-bottom:10px"></div>'+
     '<button class="sb" id="btnIdCap">📸 التقاط وحفظ</button>'+
     '</div>';
@@ -1145,6 +1224,10 @@ function renderIdCapture(name){
   var btn=document.getElementById("btnIdCap");
   if(btn)btn.onclick=function(){
     var msg=document.getElementById("idMsg");
+    var pin1=(document.getElementById("idPin1").value||"").trim();
+    var pin2=(document.getElementById("idPin2").value||"").trim();
+    if(!/^[0-9]{4}$/.test(pin1)){msg.innerHTML='<span style="color:var(--rd)">❌ الرمز لازم يكون ٤ أرقام</span>';return;}
+    if(pin1!==pin2){msg.innerHTML='<span style="color:var(--rd)">❌ الرمزان غير متطابقين</span>';return;}
     var canvas;
     try{
       var vid=document.getElementById("idVid");canvas=document.getElementById("idCanvas");
@@ -1156,12 +1239,12 @@ function renderIdCapture(name){
     compressCanvasToDataURL(canvas,900,0.6,function(dataUrl){
       if(!dataUrl){msg.innerHTML='<span style="color:var(--rd)">❌ تعذّر معالجة الصورة — حاول مرة ثانية</span>';btn.disabled=false;return;}
       var batch=fsDB.batch();
-      batch.set(fsDB.collection("driverIds").doc(name),{name:name,photo:dataUrl,capturedAt:firebase.firestore.FieldValue.serverTimestamp()});
+      batch.set(fsDB.collection("driverIds").doc(name),{name:name,photo:dataUrl,pin:pin1,capturedAt:firebase.firestore.FieldValue.serverTimestamp()});
       batch.set(fsDB.collection("driverIdFlags").doc(name),{done:true});
       batch.commit().then(function(){
         if(stream)stream.getTracks().forEach(function(t){t.stop();});
-        toast("تم حفظ الإقامة","✅");
-        rDE();
+        toast("تم حفظ الإقامة والرمز","✅");
+        enterFuelFlow(name);
       }).catch(function(){msg.innerHTML='<span style="color:var(--rd)">❌ تعذّر الحفظ — تأكد من الاتصال وحاول مرة ثانية</span>';btn.disabled=false;});
     });
   };
@@ -1420,8 +1503,8 @@ function rDE(){
     psi.oninput=function(){
       var q=this.value.trim(),rb=document.getElementById("vR");if(!rb)return;
       if(!q){rb.style.display="none";return;}
-      var matches=[];for(var i=0;i<AF.length&&matches.length<25;i++){if(AF[i].p.includes(q))matches.push(AF[i]);}
-      if(!matches.length){rb.innerHTML='<div class="vr">لا نتائج</div>';rb.style.display="block";return;}
+      var matches=[];for(var i=0;i<AF.length&&matches.length<25;i++){if(AF[i].p.includes(q)&&(!ST_assignedPlates||ST_assignedPlates.indexOf(AF[i].p)>=0))matches.push(AF[i]);}
+      if(!matches.length){rb.innerHTML='<div class="vr">'+(ST_assignedPlates?"لا نتائج ضمن مركباتك المخصصة":"لا نتائج")+'</div>';rb.style.display="block";return;}
       var h="";for(var i=0;i<matches.length;i++){h+='<div class="vr" data-pvp="'+matches[i].p+'"><b>'+matches[i].p+'</b><span>'+matches[i].u+" · "+(matches[i].m||"")+"</span></div>";}
       rb.innerHTML=h;rb.style.display="block";
       rb.querySelectorAll("[data-pvp]").forEach(function(el){el.addEventListener("click",function(){
