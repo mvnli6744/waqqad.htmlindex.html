@@ -128,7 +128,20 @@ var FIREBASE_CONFIG = {
 };
 
 var CO="شركة الأساس العريض للمقاولات";
-var SAR=2.18;
+/* Passenger cars (pickups, sedans, SUVs) run on 91 petrol; every other usage
+   type (trucks, trailers, cranes, excavators, loaders...) is counted as heavy
+   equipment on diesel — including entries whose name happens to start with
+   "سيارة" but are really trucks (e.g. the >10-ton trailer below).
+   Prices are the official pump prices — edit here if your actual rate differs. */
+var CAR_USAGE_TYPES={
+  "سيارة بكب 1 كابينة":1,"سيارة بكب 2 كابينة":1,"سيارة بكب 2 كابينة   4x4":1,
+  "سيارة ام يو اكس":1,"سيارة بيجاس":1,"سيارة اكسنت":1,"سيارة  النترا":1,
+  "سيارة  كرولا":1,"سيارة  RAV 4":1,"سيارة فورتشنر":1,"سيارة فورشنر":1,"سيارة تاهو":1
+};
+var SAR_PETROL=2.18, SAR_DIESEL=0.54;
+function isCarPlate(plate){var v=FP[plate];return !!(v&&v.u&&CAR_USAGE_TYPES[v.u]);}
+function fuelPriceForPlate(plate){return isCarPlate(plate)?SAR_PETROL:SAR_DIESEL;}
+function fuelTypeLabel(plate){return isCarPlate(plate)?"بنزين 91":"ديزل";}
 var AF=[].concat(FD), FP={};
 var fbDB=null, fbReady=false, fsDB=null;
 var CUR_USER=null;
@@ -613,9 +626,15 @@ function statusBarChart(logs){
   return h;
 }
 function agg(logs){
-  var tot=0,vd=[],open=[],td=new Date().toISOString().slice(0,10),tr=new Set();
-  for(var i=0;i<logs.length;i++){var l=logs[i];tot+=l.liters||0;if(l.dev!=null)vd.push(l.dev);if((l.st==="red"||l.st==="orange")&&!l.reviewed)open.push(l);tr.add(l.plate);}
-  return{tot:tot,avg:vd.length?vd.reduce(function(a,b){return a+b;},0)/vd.length:null,open:open,td:logs.filter(function(l){return l.date===td;}).length,tr:tr.size};
+  var tot=0,vd=[],open=[],td=new Date().toISOString().slice(0,10),tr=new Set(),cost=0,wasteCost=0;
+  for(var i=0;i<logs.length;i++){
+    var l=logs[i],price=fuelPriceForPlate(l.plate);
+    tot+=l.liters||0;cost+=(l.liters||0)*price;
+    if(l.dev!=null){vd.push(l.dev);if(l.dev>0)wasteCost+=(l.liters||0)*l.dev*price;}
+    if((l.st==="red"||l.st==="orange")&&!l.reviewed)open.push(l);
+    tr.add(l.plate);
+  }
+  return{tot:tot,avg:vd.length?vd.reduce(function(a,b){return a+b;},0)/vd.length:null,open:open,td:logs.filter(function(l){return l.date===td;}).length,tr:tr.size,cost:cost,wasteCost:wasteCost};
 }
 function pDash(logs){
   var a=agg(logs),byP={};
@@ -725,24 +744,23 @@ function printReport(logs){
   var a=agg(logs),byP={};
   for(var i=0;i<logs.length;i++){var l=logs[i];if(l.dev==null)continue;if(!byP[l.plate])byP[l.plate]=[];byP[l.plate].push(l.dev);}
   var top=Object.keys(byP).map(function(p){var d=byP[p];return{p:p,avg:d.reduce(function(x,y){return x+y;},0)/d.length,n:d.length};}).sort(function(x,y){return y.avg-x.avg;}).slice(0,10);
-  var w=a.avg==null?0:Math.max(0,a.avg),wc=a.tot*w*SAR;
   var now=new Date(),ds=now.toISOString().slice(0,10)+" "+now.toTimeString().slice(0,5);
   var h='<h1>'+CO+' — تقرير وقّاد</h1><p>تاريخ الإصدار: '+ds+' · '+AF.length+' مركبة · '+logs.length+' عملية مسجّلة</p>';
   h+='<h2>الملخص العام</h2><table><thead><tr><th>البند</th><th>القيمة</th></tr></thead><tbody>'+
     '<tr><td>إجمالي اللترات المصروفة</td><td>'+fmt(a.tot,0)+' لتر</td></tr>'+
-    '<tr><td>التكلفة الإجمالية</td><td>'+fmt(a.tot*SAR,0)+' ريال</td></tr>'+
+    '<tr><td>التكلفة الإجمالية</td><td>'+fmt(a.cost,0)+' ريال</td></tr>'+
     '<tr><td>متوسط الانحراف</td><td>'+(a.avg!=null?pct(Math.abs(a.avg)):"—")+'</td></tr>'+
-    '<tr><td>القيمة التقديرية للإهدار</td><td>'+fmt(wc,0)+' ريال</td></tr>'+
+    '<tr><td>القيمة التقديرية للإهدار</td><td>'+fmt(a.wasteCost,0)+' ريال</td></tr>'+
     '<tr><td>عدد التنبيهات المفتوحة</td><td>'+a.open.length+'</td></tr>'+
     '</tbody></table>';
   h+='<h2>أعلى 10 مركبات إهداراً</h2>';
   if(!top.length)h+='<p>لا توجد بيانات كافية بعد.</p>';
-  else{h+='<table><thead><tr><th>#</th><th>اللوحة</th><th>الاستخدام</th><th>عدد العمليات</th><th>متوسط الانحراف</th></tr></thead><tbody>';for(var i=0;i<top.length;i++){var o=top[i],v=FP[o.p];h+='<tr><td>'+(i+1)+'</td><td>'+o.p+'</td><td>'+(v?v.u:"—")+'</td><td>'+o.n+'</td><td>'+(o.avg>=0?"+":"")+pct(o.avg)+'</td></tr>';}h+='</tbody></table>';}
+  else{h+='<table><thead><tr><th>#</th><th>اللوحة</th><th>الاستخدام</th><th>الوقود</th><th>عدد العمليات</th><th>متوسط الانحراف</th></tr></thead><tbody>';for(var i=0;i<top.length;i++){var o=top[i],v=FP[o.p];h+='<tr><td>'+(i+1)+'</td><td>'+o.p+'</td><td>'+(v?v.u:"—")+'</td><td>'+fuelTypeLabel(o.p)+'</td><td>'+o.n+'</td><td>'+(o.avg>=0?"+":"")+pct(o.avg)+'</td></tr>';}h+='</tbody></table>';}
   document.getElementById("printArea").innerHTML=h;
   setTimeout(function(){window.print();},60);
 }
-function pFlt(){return '<div class="ph"><h1>دليل الأسطول</h1><p>'+AF.length+' مركبة ومعدة.</p></div><div class="tbar"><input class="ti" id="fS" placeholder="ابحث..."></div><div class="card" style="padding:0"><div class="tw" style="max-height:450px;overflow-y:auto"><table><thead><tr><th>اللوحة</th><th>الاستخدام</th><th>الصانع/الطراز</th><th>الموقع</th><th>آخر تعبئة</th><th>آخر معدل</th><th>الحالة</th><th></th></tr></thead><tbody id="fTb"></tbody></table></div></div>';}
-function rFR(){var s=(document.getElementById("fS")||{value:""}).value.trim();var rows=AF.filter(function(v){return !s||v.p.includes(s)||v.u.includes(s)||(v.l||"").includes(s);});var tb=document.getElementById("fTb");if(!tb)return;var logs=loadLogs(),h="";for(var i=0;i<Math.min(rows.length,200);i++){var v=rows[i];var ls2=logs.filter(function(l){return l.plate===v.p;}).sort(function(a,b){return new Date(b.date)-new Date(a.date);});var lx=ls2[0];h+="<tr><td class='num'>"+v.p+"</td><td>"+v.u+"</td><td>"+v.m+(v.mo?" · "+v.mo.slice(0,14):"")+"</td><td>"+(v.l||"—")+"</td><td class='num'>"+(lx?lx.date:"—")+"</td><td class='num'>"+(lx?fmt(lx.ar,2):"—")+"</td><td>"+(lx?"<span class='bg "+lx.st+"'>"+lx.sl+"</span>":"<span class='bg gray'>لا بيانات</span>")+"</td><td>"+((ST_role==="owner"||ST_role==="admin")?"<button class='btn btng' style='font-size:10px;padding:4px 8px;white-space:nowrap' data-calcp='"+v.p+"'>🧮 يستحق الإصلاح؟</button>":"")+"</td></tr>";}if(rows.length>200)h+="<tr><td colspan='8' style='text-align:center;color:var(--fn);padding:7px'>و "+(rows.length-200)+" مركبة</td></tr>";tb.innerHTML=h;var fsi=document.getElementById("fS");if(fsi)fsi.oninput=rFR;document.querySelectorAll("[data-calcp]").forEach(function(btn){btn.addEventListener("click",function(){openRepairCalc(this.dataset.calcp);});});}
+function pFlt(){return '<div class="ph"><h1>دليل الأسطول</h1><p>'+AF.length+' مركبة ومعدة.</p></div><div class="tbar"><input class="ti" id="fS" placeholder="ابحث..."></div><div class="card" style="padding:0"><div class="tw" style="max-height:450px;overflow-y:auto"><table><thead><tr><th>اللوحة</th><th>الاستخدام</th><th>الوقود</th><th>الصانع/الطراز</th><th>الموقع</th><th>آخر تعبئة</th><th>آخر معدل</th><th>الحالة</th><th></th></tr></thead><tbody id="fTb"></tbody></table></div></div>';}
+function rFR(){var s=(document.getElementById("fS")||{value:""}).value.trim();var rows=AF.filter(function(v){return !s||v.p.includes(s)||v.u.includes(s)||(v.l||"").includes(s);});var tb=document.getElementById("fTb");if(!tb)return;var logs=loadLogs(),h="";for(var i=0;i<Math.min(rows.length,200);i++){var v=rows[i];var ls2=logs.filter(function(l){return l.plate===v.p;}).sort(function(a,b){return new Date(b.date)-new Date(a.date);});var lx=ls2[0];var isCar=isCarPlate(v.p);h+="<tr><td class='num'>"+v.p+"</td><td>"+v.u+"</td><td><span class='bg "+(isCar?"blue":"gray")+"'>"+fuelTypeLabel(v.p)+"</span></td><td>"+v.m+(v.mo?" · "+v.mo.slice(0,14):"")+"</td><td>"+(v.l||"—")+"</td><td class='num'>"+(lx?lx.date:"—")+"</td><td class='num'>"+(lx?fmt(lx.ar,2):"—")+"</td><td>"+(lx?"<span class='bg "+lx.st+"'>"+lx.sl+"</span>":"<span class='bg gray'>لا بيانات</span>")+"</td><td>"+((ST_role==="owner"||ST_role==="admin")?"<button class='btn btng' style='font-size:10px;padding:4px 8px;white-space:nowrap' data-calcp='"+v.p+"'>🧮 يستحق الإصلاح؟</button>":"")+"</td></tr>";}if(rows.length>200)h+="<tr><td colspan='9' style='text-align:center;color:var(--fn);padding:7px'>و "+(rows.length-200)+" مركبة</td></tr>";tb.innerHTML=h;var fsi=document.getElementById("fS");if(fsi)fsi.oninput=rFR;document.querySelectorAll("[data-calcp]").forEach(function(btn){btn.addEventListener("click",function(){openRepairCalc(this.dataset.calcp);});});}
 function openRepairCalc(plate){
   var v=FP[plate];
   var modal=document.createElement("div");
@@ -759,13 +777,14 @@ function openRepairCalc(plate){
     var maintCost=recs.reduce(function(s,r){return s+(r.cost||0);},0);
     var logs=LOGS_CACHE.filter(function(l){return l.plate===plate;});
     var wasteLiters=logs.reduce(function(s,l){return s+(l.dev!=null&&l.dev>0?l.liters*l.dev:0);},0);
-    var wasteCost=wasteLiters*SAR;
+    var wasteCost=wasteLiters*fuelPriceForPlate(plate);
     var total=maintCost+wasteCost;
     var verdict=total<=0?"لا توجد بيانات كافية بعد لاتخاذ قرار.":
       total>8000?"⚠️ التكلفة التراكمية مرتفعة — راجع جدوى استمرار هذه المركبة اقتصادياً.":
       "✅ التكلفة التراكمية ضمن نطاق معقول حالياً.";
     var h='<table style="width:100%;border-collapse:collapse;font-size:12.5px">'+
       '<tr><td style="padding:5px 0;color:var(--dm)">نوع الاستخدام</td><td style="padding:5px 0;text-align:left;font-weight:700">'+(v?v.u:"—")+'</td></tr>'+
+      '<tr><td style="padding:5px 0;color:var(--dm)">نوع الوقود</td><td style="padding:5px 0;text-align:left;font-weight:700">'+fuelTypeLabel(plate)+'</td></tr>'+
       '<tr><td style="padding:5px 0;color:var(--dm)">عدد سجلات الصيانة</td><td style="padding:5px 0;text-align:left;font-weight:700">'+recs.length+'</td></tr>'+
       '<tr><td style="padding:5px 0;color:var(--dm)">تكلفة الصيانة/الأعطال</td><td style="padding:5px 0;text-align:left;font-weight:700">'+fmt(maintCost,0)+' ريال</td></tr>'+
       '<tr><td style="padding:5px 0;color:var(--dm)">تكلفة إهدار الوقود</td><td style="padding:5px 0;text-align:left;font-weight:700">'+fmt(wasteCost,0)+' ريال</td></tr>'+
@@ -1048,11 +1067,13 @@ function pDocs(){
 }
 function locSummary(logs){
   var byL={};
-  for(var i=0;i<logs.length;i++){var l=logs[i],v=FP[l.plate],loc=(v&&v.l)||"غير محدد";
-    if(!byL[loc])byL[loc]={tot:0,devs:[],n:0};
-    byL[loc].tot+=l.liters||0;if(l.dev!=null)byL[loc].devs.push(l.dev);byL[loc].n++;
+  for(var i=0;i<logs.length;i++){var l=logs[i],v=FP[l.plate],loc=(v&&v.l)||"غير محدد",price=fuelPriceForPlate(l.plate);
+    if(!byL[loc])byL[loc]={tot:0,devs:[],n:0,wc:0};
+    byL[loc].tot+=l.liters||0;
+    if(l.dev!=null){byL[loc].devs.push(l.dev);if(l.dev>0)byL[loc].wc+=(l.liters||0)*l.dev*price;}
+    byL[loc].n++;
   }
-  return Object.keys(byL).map(function(loc){var g=byL[loc];var avg=g.devs.length?g.devs.reduce(function(a,b){return a+b;},0)/g.devs.length:null;var w=avg==null?0:Math.max(0,avg);return{loc:loc,tot:g.tot,n:g.n,avg:avg,wc:g.tot*w*SAR};}).sort(function(a,b){return b.wc-a.wc;});
+  return Object.keys(byL).map(function(loc){var g=byL[loc];var avg=g.devs.length?g.devs.reduce(function(a,b){return a+b;},0)/g.devs.length:null;return{loc:loc,tot:g.tot,n:g.n,avg:avg,wc:g.wc};}).sort(function(a,b){return b.wc-a.wc;});
 }
 function locSummaryHtml(logs){
   var rows=locSummary(logs);
@@ -1063,7 +1084,7 @@ function locSummaryHtml(logs){
   h+='</tbody></table></div>';
   return h;
 }
-function pROI(logs){var a=agg(logs),w=a.avg==null?0:Math.max(0,a.avg),wc=a.tot*w*SAR,sv=wc*12*0.7;return '<div class="ph" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px"><div><h1>الجدوى المالية</h1><p>بناءً على '+logs.length+' عملية.</p></div><button class="btn btng" id="btnPrint" style="white-space:nowrap">🖨️ تصدير تقرير PDF</button></div><div class="kg"><div class="kc kct"><div class="kb"></div><div class="kl">إجمالي اللترات</div><div class="kv">'+fmt(a.tot,0)+'</div></div><div class="kc kca"><div class="kb"></div><div class="kl">التكلفة (ريال)</div><div class="kv">'+fmt(a.tot*SAR,0)+'</div></div><div class="kc kcr"><div class="kb"></div><div class="kl">قيمة الإهدار</div><div class="kv">'+fmt(wc,0)+'</div></div><div class="kc kct"><div class="kb"></div><div class="kl">وفورات سنوية</div><div class="kv">'+fmt(sv,0)+'</div></div></div><div class="card"><div class="ch"><h2>متوسط الإهدار</h2></div><div style="font-size:26px;font-weight:800;color:'+(a.avg!=null&&Math.abs(a.avg)>0.2?"var(--rd)":"var(--tl)")+';">'+(a.avg!=null?pct(Math.abs(a.avg)):"—")+'</div></div><div class="card"><div class="ch"><h2>مقارنة الإهدار بين المواقع</h2></div>'+locSummaryHtml(logs)+'</div>';}
+function pROI(logs){var a=agg(logs),sv=a.wasteCost*12*0.7;return '<div class="ph" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px"><div><h1>الجدوى المالية</h1><p>بناءً على '+logs.length+' عملية · التكلفة محسوبة حسب نوع الوقود لكل مركبة (بنزين 91 / ديزل).</p></div><button class="btn btng" id="btnPrint" style="white-space:nowrap">🖨️ تصدير تقرير PDF</button></div><div class="kg"><div class="kc kct"><div class="kb"></div><div class="kl">إجمالي اللترات</div><div class="kv">'+fmt(a.tot,0)+'</div></div><div class="kc kca"><div class="kb"></div><div class="kl">التكلفة (ريال)</div><div class="kv">'+fmt(a.cost,0)+'</div></div><div class="kc kcr"><div class="kb"></div><div class="kl">قيمة الإهدار</div><div class="kv">'+fmt(a.wasteCost,0)+'</div></div><div class="kc kct"><div class="kb"></div><div class="kl">وفورات سنوية</div><div class="kv">'+fmt(sv,0)+'</div></div></div><div class="card"><div class="ch"><h2>متوسط الإهدار</h2></div><div style="font-size:26px;font-weight:800;color:'+(a.avg!=null&&Math.abs(a.avg)>0.2?"var(--rd)":"var(--tl)")+';">'+(a.avg!=null?pct(Math.abs(a.avg)):"—")+'</div></div><div class="card"><div class="ch"><h2>مقارنة الإهدار بين المواقع</h2></div>'+locSummaryHtml(logs)+'</div>';}
 
 /* ── DRIVER MODE ── */
 function rDriver(){
