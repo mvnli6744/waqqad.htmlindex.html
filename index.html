@@ -868,7 +868,7 @@ function pDrvM(){
   else{
     r+='<div class="tw"><table><thead><tr><th>الاسم</th><th></th></tr></thead><tbody>';
     for(var i=0;i<DRIVERS_CACHE.length;i++){var n=DRIVERS_CACHE[i];
-      r+="<tr><td><b>"+n+"</b></td><td style='display:flex;gap:6px'><button class='btn btng' style='font-size:10px;padding:4px 8px' data-dvedit='"+i+"'>✏️ تعديل</button><button class='btn btnd' style='font-size:10px;padding:4px 8px' data-dvdel='"+i+"'>حذف</button></td></tr>";
+      r+="<tr><td><b>"+n+"</b></td><td style='display:flex;gap:6px;flex-wrap:wrap'><button class='btn btng' style='font-size:10px;padding:4px 8px' data-dvid='"+n+"'>📷 الإقامة</button><button class='btn btng' style='font-size:10px;padding:4px 8px' data-dvedit='"+i+"'>✏️ تعديل</button><button class='btn btnd' style='font-size:10px;padding:4px 8px' data-dvdel='"+i+"'>حذف</button></td></tr>";
     }
     r+="</tbody></table>";
   }
@@ -884,6 +884,7 @@ function bndDrvM(){
     var list=DRIVERS_CACHE.concat([n]);
     fsDB.collection("drivers").doc("current").set({list:list}).then(function(){logAudit("إضافة سائق",n);toast("أُضيف "+n,"✅");navTo("drvm");}).catch(function(){err.textContent="تعذّر الحفظ";});
   };
+  document.querySelectorAll("[data-dvid]").forEach(function(btn){btn.addEventListener("click",function(){openDriverIdView(this.dataset.dvid);});});
   document.querySelectorAll("[data-dvdel]").forEach(function(btn){btn.addEventListener("click",function(){
     var i=parseInt(this.dataset.dvdel,10);var dn=DRIVERS_CACHE[i];
     if(!confirm("حذف "+dn+"؟"))return;
@@ -897,6 +898,24 @@ function bndDrvM(){
     var list=DRIVERS_CACHE.slice();list[i]=nn;
     fsDB.collection("drivers").doc("current").set({list:list}).then(function(){logAudit("تعديل اسم سائق",on+" → "+nn);toast("تم التحديث","✅");navTo("drvm");});
   });});
+}
+function openDriverIdView(name){
+  var modal=document.createElement("div");
+  modal.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto;";
+  modal.innerHTML='<div style="background:var(--p1);border:1px solid var(--brd);border-radius:12px;padding:16px;max-width:420px;width:100%;max-height:90vh;overflow-y:auto;text-align:center">'+
+    '<div style="font-weight:800;font-size:14px;margin-bottom:10px">📷 إقامة '+name+'</div>'+
+    '<div id="idvBody" style="font-size:12.5px;color:var(--dm)">⏳ جارٍ التحميل...</div>'+
+    '<button class="btn btng" id="btnIdvClose" style="width:100%;margin-top:12px">إغلاق</button>'+
+    '</div>';
+  document.body.appendChild(modal);
+  document.getElementById("btnIdvClose").onclick=function(){modal.remove();};
+  fsDB.collection("driverIds").doc(name).get().then(function(doc){
+    var body=document.getElementById("idvBody");if(!body)return;
+    if(!doc.exists){body.innerHTML="لا توجد صورة محفوظة لهذا السائق (سُجّل قبل تفعيل هذه الميزة).";return;}
+    var d=doc.data();
+    var when=d.capturedAt&&d.capturedAt.toDate?d.capturedAt.toDate().toISOString().slice(0,10):"—";
+    body.innerHTML='<img src="'+d.photo+'" style="max-width:100%;border-radius:8px;border:1px solid var(--brd)"><div style="font-size:11px;color:var(--dm);margin-top:8px">تاريخ التصوير: '+when+'</div>';
+  }).catch(function(){var body=document.getElementById("idvBody");if(body)body.textContent="تعذّر تحميل الصورة.";});
 }
 function pUsr(admins){if(!ST_admin||!ST_admin.isOwner)return '<div class="card">'+es("🔒","للمالك فقط","")+"</div>";var r='<div class="ph"><h1>إدارة المستخدمين</h1></div><div class="card"><div class="ch"><h2>إضافة مشرف جديد</h2></div><div class="fr"><div class="fl"><label>الاسم</label><input type="text" id="uN"></div><div class="fl"><label>البريد الإلكتروني</label><input type="email" id="uEm"></div></div><div class="fl"><label>كلمة المرور</label><input type="password" id="uP" placeholder="6 أحرف على الأقل"></div><div id="uErr" style="color:var(--rd);font-size:12px;margin-bottom:9px"></div><button class="btn btnp" id="btnUA">➕ إضافة المشرف</button></div><div class="card"><div class="ch"><h2>المستخدمون ('+admins.length+')</h2></div><div class="tw"><table><thead><tr><th>الاسم</th><th>البريد</th><th>الصلاحية</th><th></th></tr></thead><tbody>';for(var i=0;i<admins.length;i++){var u=admins[i];r+="<tr><td><b>"+u.n+"</b></td><td>"+(u.email||"—")+"</td><td><span class='bg "+(u.isOwner?"ow2":"blue")+"'>"+(u.isOwner?"مالك":"مشرف")+"</span></td><td style='display:flex;gap:6px;flex-wrap:wrap'><button class=\"btn btng\" style=\"font-size:10px;padding:4px 8px\" data-edid=\""+u.id+"\" data-edname=\""+u.n.replace(/"/g,"&quot;")+"\">✏️ تعديل</button>"+(u.isOwner?"":'<button class="btn btng" style="font-size:10px;padding:4px 8px" data-permid="'+u.id+'">🔑 صلاحيات</button><button class="btn btnd" style="font-size:10px;padding:4px 8px" data-rmid="'+u.id+'">إزالة</button>')+"</td></tr>";}return r+"</tbody></table></div></div>";}
 function bndUsr(){
@@ -1089,7 +1108,63 @@ function pROI(logs){var a=agg(logs),sv=a.wasteCost*12*0.7;return '<div class="ph
 /* ── DRIVER MODE ── */
 function rDriver(){
   document.getElementById("A").innerHTML=tb()+'<div class="dw" id="DP"></div>';
-  if(!ST_opName)rOpG();else rDE();
+  if(!ST_opName){rOpG();return;}
+  checkDriverIdOnFile(ST_opName);
+}
+/* Every driver name must have an Iqama photo on file before they can log fuel —
+   checked on every entry to the driver flow (not just first selection), since a
+   restored session (ST_opName from localStorage) skips rOpG() entirely. Once a
+   photo exists, this is a single cheap doc read; capture only runs once ever. */
+function checkDriverIdOnFile(name){
+  var p=document.getElementById("DP");
+  if(p)p.innerHTML='<div class="dc"><div class="dt">جارٍ التحقق...</div></div>';
+  if(!fsDB){rDE();return;}
+  /* Checked against a lightweight flag doc, not driverIds itself — a driver's
+     client is only ever allowed to know THAT a photo exists, never read the
+     photo back (that stays admin/owner-only). */
+  fsDB.collection("driverIdFlags").doc(name).get().then(function(doc){
+    if(!document.getElementById("DP"))return;
+    if(doc.exists)rDE();else renderIdCapture(name);
+  }).catch(function(){if(document.getElementById("DP"))renderIdCapture(name);});
+}
+function renderIdCapture(name){
+  var p=document.getElementById("DP");if(!p)return;
+  p.innerHTML='<div class="dc"><div class="dt">📷 تصوير الإقامة</div>'+
+    '<div class="ds">أول مرة تسجّل باسم "'+name+'" — لازم تصوّر إقامتك مرة وحدة، تُحفظ بملفك ومايُطلب منك تصويرها مرة ثانية.</div>'+
+    '<video id="idVid" autoplay playsinline style="width:100%;max-width:340px;border-radius:12px;border:2px solid var(--amb);margin:10px auto;display:block"></video>'+
+    '<canvas id="idCanvas" style="display:none"></canvas>'+
+    '<div id="idMsg" style="text-align:center;font-size:12.5px;color:var(--dm);margin-bottom:10px"></div>'+
+    '<button class="sb" id="btnIdCap">📸 التقاط وحفظ</button>'+
+    '</div>';
+  var stream=null;
+  navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"},audio:false}).then(function(s){
+    stream=s;var vid=document.getElementById("idVid");if(vid)vid.srcObject=s;
+  }).catch(function(){
+    var m=document.getElementById("idMsg");if(m)m.innerHTML='<span style="color:var(--rd)">❌ تعذّر الوصول للكاميرا — تأكد من صلاحية الكاميرا بالمتصفح وحاول مرة ثانية</span>';
+  });
+  var btn=document.getElementById("btnIdCap");
+  if(btn)btn.onclick=function(){
+    var msg=document.getElementById("idMsg");
+    var canvas;
+    try{
+      var vid=document.getElementById("idVid");canvas=document.getElementById("idCanvas");
+      if(!vid.videoWidth||!vid.videoHeight){msg.innerHTML='<span style="color:var(--og)">⏳ الكاميرا لسا ما جهزت — حاول مرة ثانية</span>';return;}
+      canvas.width=vid.videoWidth;canvas.height=vid.videoHeight;
+      canvas.getContext("2d").drawImage(vid,0,0,canvas.width,canvas.height);
+    }catch(e){console.error("Iqama capture failed:",e);msg.innerHTML='<span style="color:var(--rd)">❌ تعذّر التقاط الصورة — حاول مرة ثانية</span>';return;}
+    btn.disabled=true;msg.textContent="⏳ جارٍ الحفظ...";
+    compressCanvasToDataURL(canvas,900,0.6,function(dataUrl){
+      if(!dataUrl){msg.innerHTML='<span style="color:var(--rd)">❌ تعذّر معالجة الصورة — حاول مرة ثانية</span>';btn.disabled=false;return;}
+      var batch=fsDB.batch();
+      batch.set(fsDB.collection("driverIds").doc(name),{name:name,photo:dataUrl,capturedAt:firebase.firestore.FieldValue.serverTimestamp()});
+      batch.set(fsDB.collection("driverIdFlags").doc(name),{done:true});
+      batch.commit().then(function(){
+        if(stream)stream.getTracks().forEach(function(t){t.stop();});
+        toast("تم حفظ الإقامة","✅");
+        rDE();
+      }).catch(function(){msg.innerHTML='<span style="color:var(--rd)">❌ تعذّر الحفظ — تأكد من الاتصال وحاول مرة ثانية</span>';btn.disabled=false;});
+    });
+  };
 }
 function rOpG(){
   var p=document.getElementById("DP");if(!p)return;
@@ -1232,6 +1307,22 @@ function compressCanvasToBlob(canvas,cb){
     out.getContext("2d").drawImage(canvas,0,0,outW,outH);
     out.toBlob(function(blob){cb(blob);},"image/jpeg",0.7);
   }catch(e){console.error("compressCanvasToBlob failed:",e);cb(null);}
+}
+/* Iqama photos are stored as a base64 string directly inside the Firestore doc
+   (no Firebase Storage / Blaze plan needed) — squeezed under ~700KB so the
+   base64-inflated size stays safely below Firestore's 1MB document limit. */
+function compressCanvasToDataURL(canvas,maxDim,quality,cb){
+  try{
+    var w=canvas.width,h=canvas.height;
+    var scale=Math.min(1,maxDim/Math.max(w,h));
+    var outW=Math.max(1,Math.round(w*scale)),outH=Math.max(1,Math.round(h*scale));
+    var out=document.createElement("canvas");
+    out.width=outW;out.height=outH;
+    out.getContext("2d").drawImage(canvas,0,0,outW,outH);
+    var q=quality,url=out.toDataURL("image/jpeg",q),attempts=0;
+    while(url.length>700000&&attempts<4){q=q*0.7;url=out.toDataURL("image/jpeg",q);attempts++;}
+    cb(url.length<=900000?url:null);
+  }catch(e){console.error("compressCanvasToDataURL failed:",e);cb(null);}
 }
 function preprocessForOCR(canvas){
   var ctx=canvas.getContext("2d");
