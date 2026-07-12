@@ -169,6 +169,7 @@ var AF=[].concat(FD), FP={};
 var fbDB=null, fbReady=false, fsDB=null;
 var CUR_USER=null;
 var LOGS_CACHE=[], ADMINS_CACHE=[], OV_CACHE={a:[],d:[]}, DRIVERS_CACHE=[], STATIONS_CACHE=[];
+var SITE_BUDGETS_CACHE={}, DRIVER_EXP_CACHE={};
 var RM_BASE=RM, RM_OV_CACHE={}, MAINT_CACHE=[], AUDIT_CACHE=[], DOC_OV_CACHE={};
 var LOCKDOWN=false;
 
@@ -229,6 +230,10 @@ function initFB(){
       },function(){});
       fsDB.collection("docOverrides").doc("current").onSnapshot(function(doc){
         DOC_OV_CACHE=doc.exists?(doc.data().plates||{}):{};
+        if(document.getElementById("MP"))renderPage();
+      },function(){});
+      fsDB.collection("siteBudgets").doc("current").onSnapshot(function(doc){
+        SITE_BUDGETS_CACHE=doc.exists?(doc.data().budgets||{}):{};
         if(document.getElementById("MP"))renderPage();
       },function(){});
       fsDB.collection("refRates").doc("current").onSnapshot(function(doc){
@@ -604,9 +609,20 @@ function renderPage(){
     }).catch(function(){mp.innerHTML='<div class="card">'+es("⚠️","تعذّر تحميل سجل التدقيق","")+"</div>";});
     return;
   }
+  if(ST_page==="docs"){
+    /* driverIdFlags docs are tiny (no photo) — cheap to pull in full just to
+       read any owner-set Iqama expiry dates alongside the vehicle documents. */
+    fsDB.collection("driverIdFlags").get().then(function(snap){
+      DRIVER_EXP_CACHE={};
+      snap.docs.forEach(function(d){var v=d.data();if(v.iqamaExpiry)DRIVER_EXP_CACHE[d.id]=v.iqamaExpiry;});
+      var mp2=document.getElementById("MP");if(!mp2)return;
+      mp2.innerHTML=pDocs();bndDocs();
+    }).catch(function(){mp.innerHTML=pDocs();bndDocs();});
+    return;
+  }
   var logs=loadLogs();
   if(ST_page==="dash")mp.innerHTML=pDash(logs);
-  else if(ST_page==="act")mp.innerHTML=pAct(logs);
+  else if(ST_page==="act"){mp.innerHTML=pAct(logs);loadWhosOnline();}
   else if(ST_page==="drv")mp.innerHTML=pDrv(logs);
   else if(ST_page==="alrt"){mp.innerHTML=pAlrt(logs);bndAlrt();loadDeviceAlerts();}
   else if(ST_page==="log"){mp.innerHTML=pLog();rLR();}
@@ -614,8 +630,7 @@ function renderPage(){
   else if(ST_page==="fmg"){mp.innerHTML=pFmg();rFmR();}
   else if(ST_page==="drvm"){mp.innerHTML=pDrvM();bndDrvM();}
   else if(ST_page==="rates"){mp.innerHTML=pRates();bndRates();}
-  else if(ST_page==="docs"){mp.innerHTML=pDocs();bndDocs();}
-  else if(ST_page==="roi")mp.innerHTML=pROI(logs);
+  else if(ST_page==="roi"){mp.innerHTML=pROI(logs);bndROI();}
   var bpr=document.getElementById("btnPrint");if(bpr)bpr.onclick=function(){printReport(logs);};
 }
 /* ── Lightweight inline-SVG charts (no charting library — a few hundred bytes vs. hundreds of KB) ── */
@@ -669,12 +684,33 @@ function agg(logs){
   }
   return{tot:tot,avg:vd.length?vd.reduce(function(a,b){return a+b;},0)/vd.length:null,open:open,td:logs.filter(function(l){return l.date===td;}).length,tr:tr.size,cost:cost,wasteCost:wasteCost};
 }
+function weeklyDigestHtml(logs){
+  var now=new Date();
+  var d7=new Date(now.getTime()-7*86400000).toISOString().slice(0,10);
+  var d14=new Date(now.getTime()-14*86400000).toISOString().slice(0,10);
+  var thisWeek=logs.filter(function(l){return l.date>=d7;});
+  var lastWeek=logs.filter(function(l){return l.date>=d14&&l.date<d7;});
+  var a1=agg(thisWeek),a2=agg(lastWeek);
+  var alertsThisWeek=thisWeek.filter(function(l){return l.st==="red"||l.st==="orange";}).length;
+  var costDiff=a2.cost>0?((a1.cost-a2.cost)/a2.cost*100):null;
+  var byP={};thisWeek.forEach(function(l){if(l.dev==null)return;if(!byP[l.plate])byP[l.plate]=[];byP[l.plate].push(l.dev);});
+  var ranked=Object.keys(byP).map(function(p){var d=byP[p];return{p:p,avg:d.reduce(function(x,y){return x+y;},0)/d.length};}).sort(function(x,y){return y.avg-x.avg;});
+  var topWaster=ranked.length?ranked[0]:null;
+  var h='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;font-size:12.5px">';
+  h+='<div><div style="color:var(--dm);font-size:10.5px">عمليات هذا الأسبوع</div><div style="font-weight:800;font-size:16px">'+thisWeek.length+'</div></div>';
+  h+='<div><div style="color:var(--dm);font-size:10.5px">التكلفة</div><div style="font-weight:800;font-size:16px">'+fmt(a1.cost,0)+' ريال'+(costDiff!=null?' <span style="font-size:10.5px;color:'+(costDiff>0?"var(--rd)":"var(--tl)")+'">('+(costDiff>=0?"+":"")+costDiff.toFixed(0)+"%)</span>":"")+'</div></div>';
+  h+='<div><div style="color:var(--dm);font-size:10.5px">تنبيهات جديدة</div><div style="font-weight:800;font-size:16px;color:'+(alertsThisWeek>0?"var(--og)":"var(--tl)")+'">'+alertsThisWeek+'</div></div>';
+  if(topWaster)h+='<div><div style="color:var(--dm);font-size:10.5px">الأعلى انحرافاً</div><div style="font-weight:800;font-size:14px">'+topWaster.p+'</div></div>';
+  h+='</div>';
+  return h;
+}
 function pDash(logs){
   var a=agg(logs),byP={};
   for(var i=0;i<logs.length;i++){var l=logs[i];if(l.dev==null)continue;if(!byP[l.plate])byP[l.plate]=[];byP[l.plate].push(l.dev);}
   var top=Object.keys(byP).map(function(p){var d=byP[p];return{p:p,avg:d.reduce(function(a,b){return a+b;},0)/d.length,n:d.length};}).sort(function(a,b){return b.avg-a.avg;}).slice(0,6);
   var r='<div class="ph" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px"><div><h1>'+(ST_role==="owner"?"لوحة المالك":"لوحة التحكم")+'</h1><p>'+AF.length+" مركبة · "+logs.length+' عملية مسجّلة</p></div><button class="btn btng" id="btnPrint" style="white-space:nowrap">🖨️ تصدير تقرير PDF</button></div>';
   if(ST_role==="owner")r+='<div class="op"><h2>👑 وضع المالك</h2><p>'+(fbReady?"🟢 المزامنة الفورية مفعّلة — كل التعبئات تظهر هنا في الحال.":"⏳ جارٍ الاتصال بالخادم...")+"</p></div>";
+  if(ST_role==="owner"&&logs.length)r+='<div class="card" style="margin-bottom:14px"><div class="ch"><h2>📋 ملخص الأسبوع</h2></div>'+weeklyDigestHtml(logs)+'</div>';
   r+='<div class="kg"><div class="kc kcb"><div class="kb"></div><div class="kl">الأسطول</div><div class="kv">'+AF.length+'</div></div><div class="kc kca"><div class="kb"></div><div class="kl">التعبئات</div><div class="kv">'+logs.length+'</div><div class="ks">'+a.td+' اليوم</div></div><div class="kc kct"><div class="kb"></div><div class="kl">إجمالي اللترات</div><div class="kv">'+fmt(a.tot,0)+'</div></div><div class="kc kcr"><div class="kb"></div><div class="kl">تنبيهات</div><div class="kv">'+a.open.length+'</div></div></div>';
   r+='<div class="g2"><div class="card"><div class="ch"><h2>اتجاه الانحراف — آخر 30 يوم</h2></div>'+svgTrendChart(trendData(logs))+'</div><div class="card"><div class="ch"><h2>توزيع حالة العمليات</h2></div>'+statusBarChart(logs)+'</div></div>';
   r+='<div class="g2"><div class="card"><div class="ch"><h2>أعلى 6 مركبات إهداراً</h2></div>';
@@ -689,6 +725,7 @@ function pAct(logs){
   var td=new Date().toISOString().slice(0,10),tl=logs.filter(function(l){return l.date===td;});
   var byD={};logs.forEach(function(l){var n=l.driverName||"—";if(!byD[n])byD[n]=[];byD[n].push(l);});
   var r='<div class="ph"><h1>📡 النشاط الحي</h1><p>'+td+" · "+tl.length+' عملية اليوم</p></div>';
+  r+='<div class="card"><div class="ch"><h2>🟢 متصل الآن</h2></div><div id="onlineNow" style="font-size:12px;color:var(--dm)">⏳ جارٍ التحميل...</div></div>';
   r+='<div class="card"><div class="ch"><h2>عمليات اليوم</h2></div>';
   if(!tl.length)r+=es("📋","لا توجد عمليات اليوم","");
   else{r+='<div class="tw"><table><thead><tr><th>الوقت</th><th>اللوحة</th><th>السائق</th><th>اللتر</th><th>الانحراف</th><th>الحالة</th></tr></thead><tbody>';for(var i=0;i<tl.length;i++){var l=tl[i];r+="<tr><td class='num'>"+(l.time||"—")+"</td><td class='num'>"+l.plate+"</td><td>"+(l.driverName||"—")+"</td><td class='num'>"+fmt(l.liters,1)+"</td><td class='num'>"+(l.dev!=null?(l.dev>=0?"+":"")+pct(l.dev):"—")+"</td><td><span class='bg "+l.st+"'>"+l.sl+"</span></td></tr>";}r+="</tbody></table></div>";}
@@ -733,6 +770,19 @@ function loadDeviceAlerts(){
     h+="</div>";
     mp.insertAdjacentHTML("afterbegin",h);
   }).catch(function(){});
+}
+/* "Online now" = wrote a driverSessions heartbeat in the last 30 minutes.
+   Reuses the same heartbeat written for multi-device detection — no extra
+   writes, just a read on-demand when النشاط الحي is actually open. */
+function loadWhosOnline(){
+  if(!fsDB)return;
+  fsDB.collection("driverSessions").orderBy("at","desc").limit(30).get().then(function(snap){
+    var el=document.getElementById("onlineNow");if(!el)return;
+    var cutoff=Date.now()-30*60*1000;
+    var online=snap.docs.map(function(d){return d.data();}).filter(function(v){var at=v.at&&v.at.toDate?v.at.toDate().getTime():0;return at>=cutoff;});
+    if(!online.length){el.innerHTML='لا يوجد سائقون متصلون حالياً';return;}
+    el.innerHTML=online.map(function(v){var mins=Math.max(0,Math.round((Date.now()-(v.at&&v.at.toDate?v.at.toDate().getTime():Date.now()))/60000));return '<span class="bg green" style="display:inline-flex;margin:2px 4px 2px 0">'+v.driverName+' · منذ '+mins+' د</span>';}).join("");
+  }).catch(function(){var el=document.getElementById("onlineNow");if(el)el.textContent="تعذّر التحميل";});
 }
 function pLog(){var isOwn=ST_role==="owner";return '<div class="ph"><h1>سجل التعبئة</h1></div><div class="tbar"><input class="ti" id="lS" placeholder="ابحث..."><select class="ts" id="lF"><option value="">كل الحالات</option><option value="green">🟢 طبيعي</option><option value="yellow">🟡 انحراف</option><option value="orange">🟠 مراجعة</option><option value="red">🔴 إهدار</option></select><button class="btn btng" id="btnExp">⬇️ CSV</button>'+(isOwn?'<button class="btn btnp" id="btnMlOpen">➕ إضافة عملية يدوياً</button>':"")+'</div><div class="card" style="padding:0"><div class="tw" style="max-height:450px;overflow-y:auto"><table><thead><tr><th>التاريخ</th><th>الوقت</th><th>اللوحة</th><th>الاستخدام</th><th>السابقة</th><th>الحالية</th><th>اللتر</th><th>الفعلي</th><th>المرجعي</th><th>الانحراف</th><th>الحالة</th><th>السائق</th><th>الموقع</th>'+(isOwn?"<th></th>":"")+'</tr></thead><tbody id="lTb"></tbody></table></div></div>';}
 function rLR(){
@@ -948,7 +998,7 @@ function pDrvM(){
   else{
     r+='<div class="tw"><table><thead><tr><th>الاسم</th><th></th></tr></thead><tbody>';
     for(var i=0;i<DRIVERS_CACHE.length;i++){var n=DRIVERS_CACHE[i];
-      r+="<tr><td><b>"+n+"</b></td><td style='display:flex;gap:6px;flex-wrap:wrap'><button class='btn btng' style='font-size:10px;padding:4px 8px' data-dvid='"+n+"'>📷 الإقامة</button><button class='btn btng' style='font-size:10px;padding:4px 8px' data-dassign='"+n+"'>🚛 المركبات</button><button class='btn btng' style='font-size:10px;padding:4px 8px' data-dvedit='"+i+"'>✏️ تعديل</button><button class='btn btnd' style='font-size:10px;padding:4px 8px' data-dvdel='"+i+"'>حذف</button></td></tr>";
+      r+="<tr><td><b>"+n+"</b></td><td style='display:flex;gap:6px;flex-wrap:wrap'><button class='btn btng' style='font-size:10px;padding:4px 8px' data-dprofile='"+n+"'>👤 الملف الكامل</button><button class='btn btng' style='font-size:10px;padding:4px 8px' data-dassign='"+n+"'>🚛 المركبات</button><button class='btn btng' style='font-size:10px;padding:4px 8px' data-dvedit='"+i+"'>✏️ تعديل</button><button class='btn btnd' style='font-size:10px;padding:4px 8px' data-dvdel='"+i+"'>حذف</button></td></tr>";
     }
     r+="</tbody></table>";
   }
@@ -964,7 +1014,7 @@ function bndDrvM(){
     var list=DRIVERS_CACHE.concat([n]);
     fsDB.collection("drivers").doc("current").set({list:list}).then(function(){logAudit("إضافة سائق",n);toast("أُضيف "+n,"✅");navTo("drvm");}).catch(function(){err.textContent="تعذّر الحفظ";});
   };
-  document.querySelectorAll("[data-dvid]").forEach(function(btn){btn.addEventListener("click",function(){openDriverIdView(this.dataset.dvid);});});
+  document.querySelectorAll("[data-dprofile]").forEach(function(btn){btn.addEventListener("click",function(){openDriverProfile(this.dataset.dprofile);});});
   document.querySelectorAll("[data-dassign]").forEach(function(btn){btn.addEventListener("click",function(){openDriverAssignModal(this.dataset.dassign);});});
   document.querySelectorAll("[data-dvdel]").forEach(function(btn){btn.addEventListener("click",function(){
     var i=parseInt(this.dataset.dvdel,10);var dn=DRIVERS_CACHE[i];
@@ -980,23 +1030,68 @@ function bndDrvM(){
     fsDB.collection("drivers").doc("current").set({list:list}).then(function(){logAudit("تعديل اسم سائق",on+" → "+nn);toast("تم التحديث","✅");navTo("drvm");});
   });});
 }
-function openDriverIdView(name){
+/* One page combining everything about a driver: Iqama photo + expiry, every
+   operation they've logged, and their deviation performance — computed from
+   data already in memory (LOGS_CACHE) plus a single on-demand doc fetch. */
+function openDriverProfile(name){
   var modal=document.createElement("div");
   modal.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto;";
-  modal.innerHTML='<div style="background:var(--p1);border:1px solid var(--brd);border-radius:12px;padding:16px;max-width:420px;width:100%;max-height:90vh;overflow-y:auto;text-align:center">'+
-    '<div style="font-weight:800;font-size:14px;margin-bottom:10px">📷 إقامة '+name+'</div>'+
-    '<div id="idvBody" style="font-size:12.5px;color:var(--dm)">⏳ جارٍ التحميل...</div>'+
-    '<button class="btn btng" id="btnIdvClose" style="width:100%;margin-top:12px">إغلاق</button>'+
+  modal.innerHTML='<div style="background:var(--p1);border:1px solid var(--brd);border-radius:12px;padding:16px;max-width:460px;width:100%;max-height:90vh;overflow-y:auto">'+
+    '<div style="font-weight:800;font-size:15px;margin-bottom:10px">👤 '+name+'</div>'+
+    '<div id="dpBody" style="font-size:12.5px;color:var(--dm)">⏳ جارٍ التحميل...</div>'+
+    '<button class="btn btng" id="btnDpClose" style="width:100%;margin-top:12px">إغلاق</button>'+
     '</div>';
   document.body.appendChild(modal);
-  document.getElementById("btnIdvClose").onclick=function(){modal.remove();};
-  fsDB.collection("driverIds").doc(name).get().then(function(doc){
-    var body=document.getElementById("idvBody");if(!body)return;
-    if(!doc.exists){body.innerHTML="لا توجد صورة محفوظة لهذا السائق (سُجّل قبل تفعيل هذه الميزة).";return;}
-    var d=doc.data();
-    var when=d.capturedAt&&d.capturedAt.toDate?d.capturedAt.toDate().toISOString().slice(0,10):"—";
-    body.innerHTML='<img src="'+d.photo+'" style="max-width:100%;border-radius:8px;border:1px solid var(--brd)"><div style="font-size:11px;color:var(--dm);margin-top:8px">تاريخ التصوير: '+when+'</div>';
-  }).catch(function(){var body=document.getElementById("idvBody");if(body)body.textContent="تعذّر تحميل الصورة.";});
+  document.getElementById("btnDpClose").onclick=function(){modal.remove();};
+
+  var ls=LOGS_CACHE.filter(function(l){return l.driverName===name;});
+  var vd=ls.filter(function(l){return l.dev!=null;});
+  var avgDev=vd.length?vd.reduce(function(s,l){return s+l.dev;},0)/vd.length:null;
+  var totLiters=ls.reduce(function(s,l){return s+(l.liters||0);},0);
+  var redCount=ls.filter(function(l){return l.st==="red";}).length;
+  var greenCount=ls.filter(function(l){return l.st==="green";}).length;
+
+  Promise.all([
+    fsDB.collection("driverIds").doc(name).get().catch(function(){return null;}),
+    fsDB.collection("driverIdFlags").doc(name).get().catch(function(){return null;}),
+    fsDB.collection("driverAssignments").doc(name).get().catch(function(){return null;})
+  ]).then(function(results){
+    var idDoc=results[0],flagDoc=results[1],assignDoc=results[2];
+    var body=document.getElementById("dpBody");if(!body)return;
+    var h="";
+    if(idDoc&&idDoc.exists){
+      var d=idDoc.data();
+      var when=d.capturedAt&&d.capturedAt.toDate?d.capturedAt.toDate().toISOString().slice(0,10):"—";
+      h+='<img src="'+d.photo+'" style="max-width:220px;display:block;margin:0 auto 8px;border-radius:8px;border:1px solid var(--brd)">';
+      h+='<div style="text-align:center;font-size:11px;color:var(--dm);margin-bottom:12px">تاريخ تصوير الإقامة: '+when+'</div>';
+    } else {
+      h+='<div style="text-align:center;color:var(--fn);margin-bottom:12px">لا توجد صورة إقامة محفوظة (سُجّل قبل تفعيل هذه الميزة)</div>';
+    }
+    var curExpiry=(flagDoc&&flagDoc.exists&&flagDoc.data().iqamaExpiry)||"";
+    if(ST_role==="owner"){
+      h+='<div class="fl"><label>تاريخ انتهاء الإقامة (اختياري، لتفعيل التنبيه)</label><input type="date" id="dpExp" value="'+curExpiry+'"></div>'+
+        '<button class="btn btng" id="btnDpExpSave" style="margin-bottom:12px">حفظ تاريخ الانتهاء</button>';
+    } else if(curExpiry){
+      h+='<div style="font-size:11.5px;color:var(--dm);margin-bottom:10px">تاريخ انتهاء الإقامة: '+curExpiry+'</div>';
+    }
+    var assignedPlates=(assignDoc&&assignDoc.exists&&assignDoc.data().plates)||null;
+    h+='<div style="font-size:11.5px;color:var(--dm);margin-bottom:12px">المركبات المصرَّح بها: '+(assignedPlates?assignedPlates.join("، "):"كل الأسطول (بلا قيود)")+'</div>';
+    h+='<table style="width:100%;border-collapse:collapse;font-size:12.5px;margin-bottom:10px">'+
+      '<tr><td style="padding:4px 0;color:var(--dm)">عدد العمليات</td><td style="padding:4px 0;text-align:left;font-weight:700">'+ls.length+'</td></tr>'+
+      '<tr><td style="padding:4px 0;color:var(--dm)">إجمالي اللترات</td><td style="padding:4px 0;text-align:left;font-weight:700">'+fmt(totLiters,0)+'</td></tr>'+
+      '<tr><td style="padding:4px 0;color:var(--dm)">متوسط الانحراف</td><td style="padding:4px 0;text-align:left;font-weight:700;color:'+(avgDev!=null&&Math.abs(avgDev)>0.2?"var(--rd)":"var(--tl)")+'">'+(avgDev!=null?pct(Math.abs(avgDev)):"—")+'</td></tr>'+
+      '<tr><td style="padding:4px 0;color:var(--dm)">طبيعي / إهدار</td><td style="padding:4px 0;text-align:left;font-weight:700">✅'+greenCount+' ❌'+redCount+'</td></tr>'+
+      '</table>';
+    body.innerHTML=h;
+    var expBtn=document.getElementById("btnDpExpSave");
+    if(expBtn)expBtn.onclick=function(){
+      var v=(document.getElementById("dpExp")||{value:""}).value;
+      if(!v){toast("اختر تاريخاً","⚠️");return;}
+      fsDB.collection("driverIdFlags").doc(name).update({iqamaExpiry:v}).then(function(){
+        logAudit("تحديث تاريخ انتهاء إقامة",name+" → "+v);toast("تم الحفظ","✅");
+      }).catch(function(){toast("تعذّر الحفظ — تأكد أن السائق سبق وصوّر إقامته","❌");});
+    };
+  });
 }
 function openDriverAssignModal(name){
   var modal=document.createElement("div");
@@ -1225,16 +1320,23 @@ function pDocs(){
       if(days<=60)rows.push({p:p,k:k,date:effDate,days:days,renewed:!!(DOC_OV_CACHE[p]&&DOC_OV_CACHE[p][k])});
     });
   });
+  Object.keys(DRIVER_EXP_CACHE).forEach(function(name){
+    var effDate=DRIVER_EXP_CACHE[name];
+    var exp=new Date(effDate);
+    var days=Math.round((exp-today)/86400000);
+    if(days<=60)rows.push({p:name,k:"iqama",date:effDate,days:days,renewed:false,isDriver:true});
+  });
   rows.sort(function(a,b){return a.days-b.days;});
-  var labels={ins:"التأمين",ist:"الاستمارة",tuv:"الفحص الدوري (TUV)"};
+  var labels={ins:"التأمين",ist:"الاستمارة",tuv:"الفحص الدوري (TUV)",iqama:"إقامة السائق"};
   var canManage=ST_role==="owner"||ST_role==="admin";
-  var r='<div class="ph"><h1>📄 الوثائق</h1><p>'+rows.length+' وثيقة منتهية أو قربت تنتهي — تنبيه متدرّج عند ٦٠ و٣٠ و٧ أيام.</p></div><div class="card" style="padding:0"><div class="tw" style="max-height:520px;overflow-y:auto"><table><thead><tr><th>اللوحة</th><th>الوثيقة</th><th>تاريخ الانتهاء</th><th>الحالة</th>'+(canManage?"<th></th>":"")+'</tr></thead><tbody>';
+  var r='<div class="ph"><h1>📄 الوثائق</h1><p>'+rows.length+' وثيقة منتهية أو قربت تنتهي — تنبيه متدرّج عند ٦٠ و٣٠ و٧ أيام، بما فيها إقامات السائقين.</p></div><div class="card" style="padding:0"><div class="tw" style="max-height:520px;overflow-y:auto"><table><thead><tr><th>اللوحة/السائق</th><th>الوثيقة</th><th>تاريخ الانتهاء</th><th>الحالة</th>'+(canManage?"<th></th>":"")+'</tr></thead><tbody>';
   if(!rows.length)r+="<tr><td colspan='5'>"+es("✅","لا توجد وثائق منتهية أو قريبة الانتهاء","")+"</td></tr>";
   else for(var i=0;i<rows.length;i++){
     var row=rows[i];
     var st=row.days<0?"red":row.days<=7?"orange":row.days<=30?"yellow":"gray";
     var label=row.days<0?"منتهي منذ "+Math.abs(row.days)+" يوم":"باقي "+row.days+" يوم";
-    r+="<tr><td class='num'>"+row.p+"</td><td>"+labels[row.k]+(row.renewed?' <span class="bg green">مُجدَّدة</span>':"")+"</td><td class='num'>"+row.date+"</td><td><span class='bg "+st+"'>"+label+"</span></td>"+(canManage?"<td><button class='btn btng' style='font-size:10px;padding:4px 8px;white-space:nowrap' data-docrenew='"+row.p+"' data-dockey='"+row.k+"'>✅ تم التجديد</button></td>":"")+"</tr>";
+    var canRenewThis=row.isDriver?ST_role==="owner":canManage;
+    r+="<tr><td class='num'>"+row.p+"</td><td>"+labels[row.k]+(row.renewed?' <span class="bg green">مُجدَّدة</span>':"")+"</td><td class='num'>"+row.date+"</td><td><span class='bg "+st+"'>"+label+"</span></td>"+(canRenewThis?"<td><button class='btn btng' style='font-size:10px;padding:4px 8px;white-space:nowrap' data-docrenew='"+row.p+"' data-dockey='"+row.k+"' data-docisdriver='"+(row.isDriver?1:0)+"'>✅ تم التجديد</button></td>":"")+"</tr>";
   }
   r+="</tbody></table></div></div>";
   return r;
@@ -1242,6 +1344,15 @@ function pDocs(){
 function bndDocs(){
   document.querySelectorAll("[data-docrenew]").forEach(function(btn){btn.addEventListener("click",function(){
     var p=this.dataset.docrenew,k=this.dataset.dockey;
+    if(this.dataset.docisdriver==="1"){
+      var ndDrv=prompt("تاريخ انتهاء الإقامة الجديد (YYYY-MM-DD):","");
+      if(ndDrv===null)return;ndDrv=ndDrv.trim();
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(ndDrv)){toast("صيغة التاريخ غير صحيحة","⚠️");return;}
+      fsDB.collection("driverIdFlags").doc(p).update({iqamaExpiry:ndDrv}).then(function(){
+        logAudit("تجديد إقامة سائق",p+" → "+ndDrv);toast("تم التحديث","✅");navTo("docs");
+      }).catch(function(){toast("تعذّر الحفظ","❌");});
+      return;
+    }
     var nd=prompt("تاريخ الانتهاء الجديد بعد التجديد (YYYY-MM-DD):","");
     if(nd===null)return;nd=nd.trim();
     if(!/^\d{4}-\d{2}-\d{2}$/.test(nd)){toast("صيغة التاريخ غير صحيحة","⚠️");return;}
@@ -1271,7 +1382,39 @@ function locSummaryHtml(logs){
   h+='</tbody></table></div>';
   return h;
 }
-function pROI(logs){var a=agg(logs),sv=a.wasteCost*12*0.7;return '<div class="ph" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px"><div><h1>الجدوى المالية</h1><p>بناءً على '+logs.length+' عملية · التكلفة محسوبة حسب نوع الوقود لكل مركبة (بنزين 91 / ديزل).</p></div><button class="btn btng" id="btnPrint" style="white-space:nowrap">🖨️ تصدير تقرير PDF</button></div><div class="kg"><div class="kc kct"><div class="kb"></div><div class="kl">إجمالي اللترات</div><div class="kv">'+fmt(a.tot,0)+'</div></div><div class="kc kca"><div class="kb"></div><div class="kl">التكلفة (ريال)</div><div class="kv">'+fmt(a.cost,0)+'</div></div><div class="kc kcr"><div class="kb"></div><div class="kl">قيمة الإهدار</div><div class="kv">'+fmt(a.wasteCost,0)+'</div></div><div class="kc kct"><div class="kb"></div><div class="kl">وفورات سنوية</div><div class="kv">'+fmt(sv,0)+'</div></div></div><div class="card"><div class="ch"><h2>متوسط الإهدار</h2></div><div style="font-size:26px;font-weight:800;color:'+(a.avg!=null&&Math.abs(a.avg)>0.2?"var(--rd)":"var(--tl)")+';">'+(a.avg!=null?pct(Math.abs(a.avg)):"—")+'</div></div><div class="card"><div class="ch"><h2>مقارنة الإهدار بين المواقع</h2></div>'+locSummaryHtml(logs)+'</div>';}
+function siteBudgetHtml(logs){
+  var monthKey=new Date().toISOString().slice(0,7);
+  var byL={};
+  logs.forEach(function(l){if((l.date||"").slice(0,7)!==monthKey)return;var v=FP[l.plate],loc=(v&&v.l)||"غير محدد";byL[loc]=(byL[loc]||0)+(l.liters||0)*fuelPriceForPlate(l.plate);});
+  var locsSet={};AF.forEach(function(v){if(v.l)locsSet[v.l]=true;});
+  var locs=Object.keys(locsSet).sort();
+  var isOwner=ST_role==="owner";
+  if(!locs.length)return '<p style="font-size:12px;color:var(--dm)">لا توجد مواقع محددة بالأسطول بعد.</p>';
+  var h='<div class="tw"><table><thead><tr><th>الموقع</th><th>الصرف هذا الشهر</th><th>الميزانية الشهرية</th><th>النسبة</th></tr></thead><tbody>';
+  for(var i=0;i<locs.length;i++){
+    var loc=locs[i],spend=byL[loc]||0,budget=SITE_BUDGETS_CACHE[loc]||0;
+    var p=budget>0?(spend/budget*100):null;
+    var c=p==null?"var(--fn)":p>=100?"var(--rd)":p>=80?"var(--og)":"var(--tl)";
+    h+='<tr><td><b>'+loc+'</b></td><td class="num">'+fmt(spend,0)+' ريال</td><td class="num">'+(isOwner?'<input type="number" data-budgetloc="'+loc+'" value="'+(budget||"")+'" style="width:90px;background:var(--p2);border:1px solid var(--brd);border-radius:6px;padding:4px 6px;color:var(--tx);text-align:left">':(budget?fmt(budget,0)+" ريال":"—"))+'</td><td>'+(p!=null?'<div style="width:80px;background:var(--p2);border-radius:100px;height:8px;overflow:hidden;display:inline-block;vertical-align:middle"><div style="width:'+Math.min(100,p)+'%;height:100%;background:'+c+'"></div></div> <span style="font-size:10.5px;color:'+c+'">'+p.toFixed(0)+'%</span>':'<span style="color:var(--fn);font-size:11px">بدون ميزانية</span>')+'</td></tr>';
+  }
+  h+='</tbody></table></div>';
+  if(isOwner)h+='<button class="btn btnp" id="btnBudgetSave" style="margin-top:10px">حفظ الميزانيات</button>';
+  return h;
+}
+function bndROI(){
+  var save=document.getElementById("btnBudgetSave");
+  if(save)save.onclick=function(){
+    var budgets=Object.assign({},SITE_BUDGETS_CACHE);
+    document.querySelectorAll("[data-budgetloc]").forEach(function(inp){
+      var loc=inp.dataset.budgetloc,val=parseFloat(inp.value);
+      if(!isNaN(val)&&val>0)budgets[loc]=val;else delete budgets[loc];
+    });
+    fsDB.collection("siteBudgets").doc("current").set({budgets:budgets}).then(function(){
+      logAudit("تحديث ميزانيات المواقع","");toast("تم الحفظ","✅");
+    }).catch(function(){toast("تعذّر الحفظ","❌");});
+  };
+}
+function pROI(logs){var a=agg(logs),sv=a.wasteCost*12*0.7;return '<div class="ph" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px"><div><h1>الجدوى المالية</h1><p>بناءً على '+logs.length+' عملية · التكلفة محسوبة حسب نوع الوقود لكل مركبة (بنزين 91 / ديزل).</p></div><button class="btn btng" id="btnPrint" style="white-space:nowrap">🖨️ تصدير تقرير PDF</button></div><div class="kg"><div class="kc kct"><div class="kb"></div><div class="kl">إجمالي اللترات</div><div class="kv">'+fmt(a.tot,0)+'</div></div><div class="kc kca"><div class="kb"></div><div class="kl">التكلفة (ريال)</div><div class="kv">'+fmt(a.cost,0)+'</div></div><div class="kc kcr"><div class="kb"></div><div class="kl">قيمة الإهدار</div><div class="kv">'+fmt(a.wasteCost,0)+'</div></div><div class="kc kct"><div class="kb"></div><div class="kl">وفورات سنوية</div><div class="kv">'+fmt(sv,0)+'</div></div></div><div class="card"><div class="ch"><h2>متوسط الإهدار</h2></div><div style="font-size:26px;font-weight:800;color:'+(a.avg!=null&&Math.abs(a.avg)>0.2?"var(--rd)":"var(--tl)")+';">'+(a.avg!=null?pct(Math.abs(a.avg)):"—")+'</div></div><div class="card"><div class="ch"><h2>مقارنة الإهدار بين المواقع</h2></div>'+locSummaryHtml(logs)+'</div><div class="card"><div class="ch"><h2>🎯 ميزانيات المواقع الشهرية</h2></div>'+siteBudgetHtml(logs)+'</div>';}
 
 /* ── DRIVER MODE ── */
 function rDriver(){
