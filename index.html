@@ -138,7 +138,7 @@ var CAR_USAGE_TYPES={
   "سيارة ام يو اكس":1,"سيارة بيجاس":1,"سيارة اكسنت":1,"سيارة  النترا":1,
   "سيارة  كرولا":1,"سيارة  RAV 4":1,"سيارة فورتشنر":1,"سيارة فورشنر":1,"سيارة تاهو":1
 };
-var SAR_PETROL=2.18, SAR_DIESEL=0.54;
+var SAR_PETROL=2.18, SAR_DIESEL=1.79;
 function isCarPlate(plate){var v=FP[plate];return !!(v&&v.u&&CAR_USAGE_TYPES[v.u]);}
 function fuelPriceForPlate(plate){return isCarPlate(plate)?SAR_PETROL:SAR_DIESEL;}
 function fuelTypeLabel(plate){return isCarPlate(plate)?"بنزين 91":"ديزل";}
