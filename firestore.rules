@@ -49,7 +49,7 @@ service cloud.firestore {
       allow get: if isSignedIn();
       allow list: if isAdminOrOwner();
       allow create: if isSignedIn() && (isAdminOrOwner() || (!isLocked() && isAssignedPlate(request.resource.data.driverName, request.resource.data.plate)))
-        && request.resource.data.keys().hasOnly(['plate','date','time','prev','curr','liters','station','notes','driverName','ar','dev','st','sl','ref','un','reviewed','createdAt','photoPrev','photoCurr'])
+        && request.resource.data.keys().hasOnly(['plate','date','time','prev','curr','liters','station','notes','driverName','ar','dev','st','sl','ref','un','reviewed','createdAt','photoPrev','photoCurr','spot'])
         && request.resource.data.plate is string && request.resource.data.plate.size() > 0 && request.resource.data.plate.size() < 40
         && request.resource.data.driverName is string && request.resource.data.driverName.size() > 0 && request.resource.data.driverName.size() < 100
         && request.resource.data.prev is number && request.resource.data.curr is number
@@ -57,8 +57,11 @@ service cloud.firestore {
         && request.resource.data.liters is number && request.resource.data.liters > 0 && request.resource.data.liters < 2000
         && request.resource.data.reviewed == false
         && request.resource.data.createdAt == request.time;
-      allow update: if isAdminOrOwner()
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reviewed']);
+      // Segregation of duties: a "red" (critical waste) entry can only be
+      // dismissed/approved by the owner — a regular admin (who might be the
+      // one covering for a driver) can only review yellow/orange/spot-checked.
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reviewed'])
+        && (isOwner() || (isAdminOrOwner() && resource.data.st != 'red'));
       allow delete: if isOwner();
     }
 
@@ -119,6 +122,21 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly(['locked','by','at'])
         && request.resource.data.locked is bool
         && request.resource.data.by is string
+        && request.resource.data.at == request.time;
+    }
+
+    // Per-device heartbeat written on every driver login — lets a driver's own
+    // client compare against its last-known device (get, by exact name) to
+    // flag possible credential sharing, while only admin/owner can query
+    // ("list") the collection to see who else is currently active.
+    match /driverSessions/{name} {
+      allow get: if isSignedIn();
+      allow list: if isAdminOrOwner();
+      allow write: if isSignedIn()
+        && request.resource.data.keys().hasOnly(['deviceId','driverName','alert','at'])
+        && request.resource.data.deviceId is string && request.resource.data.deviceId.size() > 0 && request.resource.data.deviceId.size() < 100
+        && request.resource.data.driverName is string
+        && request.resource.data.alert is bool
         && request.resource.data.at == request.time;
     }
 

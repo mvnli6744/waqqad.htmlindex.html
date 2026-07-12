@@ -95,7 +95,7 @@ tbody td{padding:7px 9px;border-bottom:1px solid var(--brd);white-space:nowrap}t
 .rtoast-t{font-weight:800;font-size:13px}.rtoast-d{font-size:11.5px;color:var(--dm);margin-top:2px;line-height:1.6}
 .rii{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--brd)}.rii:last-child{border-bottom:none}
 .arow{display:flex;align-items:flex-start;gap:9px;padding:11px;border-radius:9px;margin-bottom:7px;border:1px solid var(--brd);background:var(--p2)}
-.adot{width:7px;height:7px;border-radius:50%;margin-top:5px;flex-shrink:0}.adot.red{background:var(--rd)}.adot.orange{background:var(--og)}
+.adot{width:7px;height:7px;border-radius:50%;margin-top:5px;flex-shrink:0}.adot.red{background:var(--rd)}.adot.orange{background:var(--og)}.adot.spot{background:#5b9bd5}
 .op{background:linear-gradient(135deg,rgba(232,163,61,.07),rgba(91,155,213,.04));border:1px solid rgba(232,163,61,.2);border-radius:10px;padding:13px;margin-bottom:13px}.op h2{font-size:13.5px;font-weight:800;color:var(--amb);margin-bottom:4px}.op p{font-size:11.5px;color:var(--dm);line-height:1.7}
 .toastEl{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);background:var(--p2);border:1px solid var(--brd);padding:9px 16px;border-radius:9px;font-size:12.5px;display:none;align-items:center;gap:7px;z-index:999;white-space:nowrap;max-width:calc(100vw - 28px);box-shadow:0 8px 24px rgba(0,0,0,.5)}
 .es{text-align:center;padding:30px 14px;color:var(--fn)}.es .ei{font-size:24px;margin-bottom:8px;display:block}.es .et{font-size:13px;font-weight:600;color:var(--dm)}.num{font-family:monospace}
@@ -378,6 +378,19 @@ function goBack(){ST_role=null;render();}
 function goLogout(){if(fbReady)firebase.auth().signOut();ST_role=null;ST_admin=null;ST_opName="";ST_selV=null;ST_lastReading=null;ST_assignedPlates=null;render();}
 function goChOp(){ST_opName="";ST_assignedPlates=null;setOp("");render();}
 function navTo(pg){ST_page=pg;renderPage();}
+/* An unlocked owner/admin device left unattended (an office, a truck cab) is a
+   standing invitation to tamper with rates or delete records — auto sign-out
+   after 20 idle minutes closes that window without needing a server. */
+var IDLE_LIMIT_MS=20*60*1000, ST_lastActivity=Date.now();
+["mousemove","keydown","click","touchstart","scroll"].forEach(function(ev){
+  document.addEventListener(ev,function(){ST_lastActivity=Date.now();},{passive:true});
+});
+setInterval(function(){
+  if((ST_role==="owner"||ST_role==="admin")&&Date.now()-ST_lastActivity>IDLE_LIMIT_MS){
+    toast("تم تسجيل الخروج تلقائياً بسبب عدم النشاط","🔒");
+    goLogout();
+  }
+},60000);
 
 /* ── Render root ── */
 function render(){
@@ -575,7 +588,7 @@ function renderPage(){
   if(ST_page==="dash")mp.innerHTML=pDash(logs);
   else if(ST_page==="act")mp.innerHTML=pAct(logs);
   else if(ST_page==="drv")mp.innerHTML=pDrv(logs);
-  else if(ST_page==="alrt"){mp.innerHTML=pAlrt(logs);bndAlrt();}
+  else if(ST_page==="alrt"){mp.innerHTML=pAlrt(logs);bndAlrt();loadDeviceAlerts();}
   else if(ST_page==="log"){mp.innerHTML=pLog();rLR();}
   else if(ST_page==="flt"){mp.innerHTML=pFlt();rFR();}
   else if(ST_page==="fmg"){mp.innerHTML=pFmg();rFmR();}
@@ -675,13 +688,32 @@ function pDrv(logs){
   return r;
 }
 function pAlrt(logs){
-  var al=logs.filter(function(l){return l.st==="red"||l.st==="orange";}).sort(function(a,b){return Math.abs(b.dev)-Math.abs(a.dev);});
-  var r='<div class="ph"><h1>التنبيهات</h1><p>'+al.length+' حالة تجاوزت 20% انحراف.</p></div><div class="card"><div class="ch"><h2>'+al.length+' تنبيه</h2></div>';
+  var al=logs.filter(function(l){return l.st==="red"||l.st==="orange"||l.spot;}).sort(function(a,b){return Math.abs(b.dev||0)-Math.abs(a.dev||0);});
+  var r='<div class="ph"><h1>التنبيهات</h1><p>'+al.length+' حالة تحتاج مراجعة، بما فيها فحوصات عشوائية على عمليات طبيعية.</p></div><div class="card"><div class="ch"><h2>'+al.length+' تنبيه</h2></div>';
   if(!al.length)r+=es("✅","لا توجد تنبيهات — أداء ممتاز","");
-  else for(var i=0;i<al.length;i++){var a=al[i];r+='<div class="arow"><div class="adot '+(a.st==="red"?"red":"orange")+'"></div><div style="flex:1"><div style="font-size:13px;font-weight:700">'+a.plate+(a.reviewed?' <span class="bg gray">راجعت</span>':"")+'</div><div style="font-size:11px;color:var(--dm);margin-top:3px">'+a.date+" · "+(a.driverName||"—")+" · "+fmt(a.ar,2)+" vs "+fmt(a.ref,2)+" · "+(a.dev>=0?"+":"")+pct(a.dev)+"</div></div>"+(a.reviewed?"":'<button class="btn btng" style="font-size:10.5px;padding:5px 9px" data-rvid="'+a.id+'">مراجعة</button>')+"</div>";}
+  else for(var i=0;i<al.length;i++){
+    var a=al[i];
+    var dotCls=a.st==="red"?"red":a.st==="orange"?"orange":"spot";
+    var isRed=a.st==="red";
+    var canReview=!isRed||ST_role==="owner";
+    r+='<div class="arow"><div class="adot '+dotCls+'"></div><div style="flex:1"><div style="font-size:13px;font-weight:700">'+a.plate+(a.reviewed?' <span class="bg gray">راجعت</span>':"")+(a.spot&&a.st==="green"?' <span class="bg blue">فحص عشوائي</span>':"")+(isRed?' <span class="bg red">حرج — للمالك فقط</span>':"")+'</div><div style="font-size:11px;color:var(--dm);margin-top:3px">'+a.date+" · "+(a.driverName||"—")+" · "+fmt(a.ar,2)+" vs "+fmt(a.ref,2)+" · "+(a.dev!=null?(a.dev>=0?"+":"")+pct(a.dev):"—")+"</div></div>"+(a.reviewed?"":canReview?'<button class="btn btng" style="font-size:10.5px;padding:5px 9px" data-rvid="'+a.id+'">مراجعة</button>':'<span style="font-size:10.5px;color:var(--fn)">بانتظار المالك</span>')+"</div>";
+  }
   return r+"</div>";
 }
 function bndAlrt(){document.querySelectorAll("[data-rvid]").forEach(function(btn){btn.addEventListener("click",function(){var id=this.dataset.rvid,logs=loadLogs();for(var i=0;i<logs.length;i++){if(logs[i].id===id){logs[i].reviewed=true;patchLog(logs[i]);break;}}toast("تمت المراجعة","✅");renderPage();});});}
+/* Surfaces any driver name recently active from more than one device — a
+   separate on-demand fetch (driverSessions isn't part of the logs stream) so
+   it costs nothing unless the التنبيهات page is actually open. */
+function loadDeviceAlerts(){
+  if(!fsDB)return;
+  fsDB.collection("driverSessions").where("alert","==",true).limit(20).get().then(function(snap){
+    var mp=document.getElementById("MP");if(!mp||snap.empty)return;
+    var h='<div class="card" style="border-right:4px solid var(--rd);margin-bottom:14px"><div class="ch"><h2>⚠️ دخول بنفس الاسم من أجهزة متعددة</h2></div>';
+    snap.docs.forEach(function(d){var v=d.data();var when=v.at&&v.at.toDate?v.at.toDate().toISOString().slice(0,16).replace("T"," "):"—";h+='<div style="font-size:12.5px;padding:6px 0;border-bottom:1px solid var(--brd)"><b>'+v.driverName+'</b> <span style="color:var(--dm)">— آخر دخول '+when+'</span></div>';});
+    h+="</div>";
+    mp.insertAdjacentHTML("afterbegin",h);
+  }).catch(function(){});
+}
 function pLog(){var isOwn=ST_role==="owner";return '<div class="ph"><h1>سجل التعبئة</h1></div><div class="tbar"><input class="ti" id="lS" placeholder="ابحث..."><select class="ts" id="lF"><option value="">كل الحالات</option><option value="green">🟢 طبيعي</option><option value="yellow">🟡 انحراف</option><option value="orange">🟠 مراجعة</option><option value="red">🔴 إهدار</option></select><button class="btn btng" id="btnExp">⬇️ CSV</button>'+(isOwn?'<button class="btn btnp" id="btnMlOpen">➕ إضافة عملية يدوياً</button>':"")+'</div><div class="card" style="padding:0"><div class="tw" style="max-height:450px;overflow-y:auto"><table><thead><tr><th>التاريخ</th><th>الوقت</th><th>اللوحة</th><th>الاستخدام</th><th>السابقة</th><th>الحالية</th><th>اللتر</th><th>الفعلي</th><th>المرجعي</th><th>الانحراف</th><th>الحالة</th><th>السائق</th><th>الموقع</th>'+(isOwn?"<th></th>":"")+'</tr></thead><tbody id="lTb"></tbody></table></div></div>';}
 function rLR(){
   var isOwn=ST_role==="owner";
@@ -1157,11 +1189,36 @@ function rDriver(){
    (driverAssignments/{name}) — fetched once right before the fuel-entry form
    opens, never on every keystroke. No assignment doc means unrestricted. */
 function enterFuelFlow(name){
+  checkMultiDevice(name);
   if(!fsDB){ST_assignedPlates=null;rDE();return;}
   fsDB.collection("driverAssignments").doc(name).get().then(function(doc){
     ST_assignedPlates=doc.exists&&doc.data().plates&&doc.data().plates.length?doc.data().plates:null;
     rDE();
   }).catch(function(){ST_assignedPlates=null;rDE();});
+}
+/* A persistent per-browser device id (not tied to auth, since drivers are
+   anonymous) — lets the owner spot a name being used from more than one
+   device within a short window, a common sign of a shared/leaked login. */
+function getDeviceId(){
+  var k="wq_device_id";
+  try{
+    var id=localStorage.getItem(k);
+    if(!id){id="d"+Date.now().toString(36)+Math.random().toString(36).slice(2,10);localStorage.setItem(k,id);}
+    return id;
+  }catch(e){return "d"+Math.random().toString(36).slice(2,10);}
+}
+var DEVICE_ID=getDeviceId();
+function checkMultiDevice(name){
+  if(!fsDB)return;
+  var ref=fsDB.collection("driverSessions").doc(name);
+  ref.get().then(function(doc){
+    var alert=false;
+    if(doc.exists){
+      var d=doc.data(),lastAt=d.at&&d.at.toDate?d.at.toDate().getTime():0;
+      if(d.deviceId&&d.deviceId!==DEVICE_ID&&(Date.now()-lastAt)<10*60*1000)alert=true;
+    }
+    ref.set({deviceId:DEVICE_ID,driverName:name,alert:alert,at:firebase.firestore.FieldValue.serverTimestamp()}).catch(function(){});
+  }).catch(function(){});
 }
 function checkDriverIdOnFile(name){
   var p=document.getElementById("DP");
@@ -1531,6 +1588,9 @@ function rDE(){
     sb.disabled=true;sb.textContent="جارٍ الحفظ...";
     var c=calcE(ST_selV.p,prev,curr,liters);
     var entry={plate:ST_selV.p,date:new Date().toISOString().slice(0,10),time:new Date().toTimeString().slice(0,5),prev:prev,curr:curr,liters:liters,station:station,notes:notes,driverName:ST_drvName,ar:c.ar,dev:c.dev,st:c.st,sl:c.sl,ref:c.ref,un:c.un,reviewed:false};
+    /* Random spot-check: even "normal" entries get pulled for review sometimes,
+       so a driver can't learn the deviation thresholds and stay just under them. */
+    if(c.st==="green"&&Math.random()<0.1)entry.spot=true;
     var photos={prev:ST_capturedPhotos.iPr||null,curr:ST_capturedPhotos.iCr||null};
     saveLog(entry,photos,function(ok){
       if(!ok){toast("تعذّر الحفظ","❌");sb.disabled=false;sb.textContent="✅ تسجيل العملية";return;}
