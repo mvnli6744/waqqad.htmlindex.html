@@ -841,6 +841,45 @@ function openManualLog(){
     });
   };
 }
+/* QR-code generator — only ever loaded when the owner opens the label-print
+   flow, an admin-only, occasional action that doesn't touch a driver's daily
+   data budget. Encodes nothing but the plain plate string. */
+var qrLibLoading=null;
+function loadQrLib(cb){
+  if(window.QRCode){cb(false);return;}
+  if(qrLibLoading){qrLibLoading.push(cb);return;}
+  qrLibLoading=[cb];
+  var done=false;
+  var timer=setTimeout(function(){if(done)return;done=true;var cbs=qrLibLoading;qrLibLoading=null;cbs.forEach(function(f){f(true);});},15000);
+  var s=document.createElement("script");
+  s.src="https://cdn.jsdelivr.net/npm/qrcode@1/build/qrcode.min.js";
+  s.onload=function(){if(done)return;done=true;clearTimeout(timer);var cbs=qrLibLoading;qrLibLoading=null;cbs.forEach(function(f){f(false);});};
+  s.onerror=function(){if(done)return;done=true;clearTimeout(timer);var cbs=qrLibLoading;qrLibLoading=null;cbs.forEach(function(f){f(true);});};
+  document.head.appendChild(s);
+}
+function printQrLabels(vehicles){
+  vehicles=vehicles.slice(0,120);
+  toast("⏳ جارٍ تجهيز الملصقات...","🏷️");
+  loadQrLib(function(failed){
+    if(failed){toast("تعذّر تحميل أداة QR — تأكد من الاتصال","❌");return;}
+    var pending=vehicles.length;
+    if(!pending){toast("لا توجد مركبات لطباعة ملصقاتها","⚠️");return;}
+    var cells=new Array(vehicles.length);
+    vehicles.forEach(function(v,idx){
+      var canvas=document.createElement("canvas");
+      QRCode.toCanvas(canvas,v.p,{width:110,margin:1},function(){
+        /* canvas pixel content doesn't survive innerHTML serialization — bake
+           it to a data URL <img> before assembling the printable page. */
+        cells[idx]='<div style="display:inline-block;text-align:center;width:130px;margin:6px;page-break-inside:avoid"><img src="'+canvas.toDataURL("image/png")+'" width="110" height="110"><div style="font-size:11px;margin-top:4px;font-weight:700">'+v.p+'</div></div>';
+        pending--;
+        if(pending===0){
+          document.getElementById("printArea").innerHTML='<h1>ملصقات باركود المركبات</h1><div>'+cells.join("")+'</div>';
+          setTimeout(function(){window.print();},60);
+        }
+      });
+    });
+  });
+}
 function expCsv(){var h=["التاريخ","الوقت","اللوحة","الاستخدام","السابقة","الحالية","اللتر","الفعلي","المرجعي","الانحراف%","الحالة","السائق","الموقع"];var r=loadLogs().map(function(l){var v=FP[l.plate];return[l.date,l.time||"",l.plate,v?v.u:"",l.prev,l.curr,l.liters,fmt(l.ar,2),fmt(l.ref,2),l.dev!=null?(l.dev*100).toFixed(1):"",l.sl,l.driverName||"",l.station||""];});var csv=[h].concat(r).map(function(row){return row.map(function(c){return'"'+String(c).replace(/"/g,'""')+'"';}).join(",");}).join("\n");var a=document.createElement("a");a.href="data:text/csv;charset=utf-8,\uFEFF"+encodeURIComponent(csv);a.download="waqqad.csv";a.click();toast("تم التصدير","⬇️");}
 function printReport(logs){
   var a=agg(logs),byP={};
@@ -861,8 +900,10 @@ function printReport(logs){
   document.getElementById("printArea").innerHTML=h;
   setTimeout(function(){window.print();},60);
 }
-function pFlt(){return '<div class="ph"><h1>دليل الأسطول</h1><p>'+AF.length+' مركبة ومعدة.</p></div><div class="tbar"><input class="ti" id="fS" placeholder="ابحث..."></div><div class="card" style="padding:0"><div class="tw" style="max-height:450px;overflow-y:auto"><table><thead><tr><th>اللوحة</th><th>الاستخدام</th><th>الوقود</th><th>الصانع/الطراز</th><th>الموقع</th><th>آخر تعبئة</th><th>آخر معدل</th><th>الحالة</th><th></th></tr></thead><tbody id="fTb"></tbody></table></div></div>';}
-function rFR(){var s=(document.getElementById("fS")||{value:""}).value.trim();var rows=AF.filter(function(v){return !s||v.p.includes(s)||v.u.includes(s)||(v.l||"").includes(s);});var tb=document.getElementById("fTb");if(!tb)return;var logs=loadLogs(),h="";for(var i=0;i<Math.min(rows.length,200);i++){var v=rows[i];var ls2=logs.filter(function(l){return l.plate===v.p;}).sort(function(a,b){return new Date(b.date)-new Date(a.date);});var lx=ls2[0];var isCar=isCarPlate(v.p);h+="<tr><td class='num'>"+v.p+"</td><td>"+v.u+"</td><td><span class='bg "+(isCar?"blue":"gray")+"'>"+fuelTypeLabel(v.p)+"</span></td><td>"+v.m+(v.mo?" · "+v.mo.slice(0,14):"")+"</td><td>"+(v.l||"—")+"</td><td class='num'>"+(lx?lx.date:"—")+"</td><td class='num'>"+(lx?fmt(lx.ar,2):"—")+"</td><td>"+(lx?"<span class='bg "+lx.st+"'>"+lx.sl+"</span>":"<span class='bg gray'>لا بيانات</span>")+"</td><td>"+((ST_role==="owner"||ST_role==="admin")?"<button class='btn btng' style='font-size:10px;padding:4px 8px;white-space:nowrap' data-calcp='"+v.p+"'>🧮 التكلفة الشاملة</button>":"")+"</td></tr>";}if(rows.length>200)h+="<tr><td colspan='9' style='text-align:center;color:var(--fn);padding:7px'>و "+(rows.length-200)+" مركبة</td></tr>";tb.innerHTML=h;var fsi=document.getElementById("fS");if(fsi)fsi.oninput=rFR;document.querySelectorAll("[data-calcp]").forEach(function(btn){btn.addEventListener("click",function(){openRepairCalc(this.dataset.calcp);});});}
+function pFlt(){return '<div class="ph"><h1>دليل الأسطول</h1><p>'+AF.length+' مركبة ومعدة.</p></div><div class="tbar"><input class="ti" id="fS" placeholder="ابحث..."></div>'+((ST_role==="owner"||ST_role==="admin")?'<div class="tbar"><button class="btn btng" id="btnQrLabels" style="white-space:nowrap">🏷️ طباعة ملصقات QR للنتائج الحالية</button></div>':"")+'<div class="card" style="padding:0"><div class="tw" style="max-height:450px;overflow-y:auto"><table><thead><tr><th>اللوحة</th><th>الاستخدام</th><th>الوقود</th><th>الصانع/الطراز</th><th>الموقع</th><th>آخر تعبئة</th><th>آخر معدل</th><th>الحالة</th><th></th></tr></thead><tbody id="fTb"></tbody></table></div></div>';}
+function rFR(){var s=(document.getElementById("fS")||{value:""}).value.trim();var rows=AF.filter(function(v){return !s||v.p.includes(s)||v.u.includes(s)||(v.l||"").includes(s);});var tb=document.getElementById("fTb");if(!tb)return;var logs=loadLogs(),h="";for(var i=0;i<Math.min(rows.length,200);i++){var v=rows[i];var ls2=logs.filter(function(l){return l.plate===v.p;}).sort(function(a,b){return new Date(b.date)-new Date(a.date);});var lx=ls2[0];var isCar=isCarPlate(v.p);h+="<tr><td class='num'>"+v.p+"</td><td>"+v.u+"</td><td><span class='bg "+(isCar?"blue":"gray")+"'>"+fuelTypeLabel(v.p)+"</span></td><td>"+v.m+(v.mo?" · "+v.mo.slice(0,14):"")+"</td><td>"+(v.l||"—")+"</td><td class='num'>"+(lx?lx.date:"—")+"</td><td class='num'>"+(lx?fmt(lx.ar,2):"—")+"</td><td>"+(lx?"<span class='bg "+lx.st+"'>"+lx.sl+"</span>":"<span class='bg gray'>لا بيانات</span>")+"</td><td>"+((ST_role==="owner"||ST_role==="admin")?"<button class='btn btng' style='font-size:10px;padding:4px 8px;white-space:nowrap' data-calcp='"+v.p+"'>🧮 التكلفة الشاملة</button>":"")+"</td></tr>";}if(rows.length>200)h+="<tr><td colspan='9' style='text-align:center;color:var(--fn);padding:7px'>و "+(rows.length-200)+" مركبة</td></tr>";tb.innerHTML=h;var fsi=document.getElementById("fS");if(fsi)fsi.oninput=rFR;document.querySelectorAll("[data-calcp]").forEach(function(btn){btn.addEventListener("click",function(){openRepairCalc(this.dataset.calcp);});});
+  var qrl=document.getElementById("btnQrLabels");if(qrl)qrl.onclick=function(){printQrLabels(rows);};
+}
 function openRepairCalc(plate){
   var v=FP[plate];
   var modal=document.createElement("div");
@@ -1577,6 +1618,44 @@ function rOpG(){
   }
 }
 
+/* QR scanning — uses the browser's built-in BarcodeDetector (zero network
+   bytes, no library) where available. A vehicle's QR sticker just encodes its
+   plate number as plain text, matched directly against FP[]. */
+function openQrScan(onDetect){
+  if(!("BarcodeDetector" in window)){
+    toast("متصفحك لا يدعم مسح الباركود — استخدم البحث اليدوي","⚠️");
+    return;
+  }
+  var modal=document.createElement("div");
+  modal.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;";
+  modal.innerHTML='<div style="color:#fff;font-size:14px;font-weight:700">وجّه الكاميرا نحو ملصق الباركود على المركبة</div>'+
+    '<video id="qrVid" autoplay playsinline style="max-width:340px;width:100%;border-radius:12px;border:2px solid var(--amb)"></video>'+
+    '<div id="qrMsg" style="color:var(--dm);font-size:12.5px">⏳ جارٍ فتح الكاميرا...</div>'+
+    '<button id="btnQrClose" style="padding:12px 20px;border-radius:10px;background:var(--p2);color:var(--dm);font-size:14px;border:1px solid var(--brd);cursor:pointer">إلغاء</button>';
+  document.body.appendChild(modal);
+  var stream=null,stopped=false,timer=null;
+  function close(){stopped=true;if(timer)clearTimeout(timer);if(stream)stream.getTracks().forEach(function(t){t.stop();});modal.remove();}
+  document.getElementById("btnQrClose").onclick=close;
+  navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"},audio:false}).then(function(s){
+    if(stopped){s.getTracks().forEach(function(t){t.stop();});return;}
+    stream=s;var vid=document.getElementById("qrVid");if(vid)vid.srcObject=s;
+    var msg=document.getElementById("qrMsg");if(msg)msg.textContent="🔍 جارٍ البحث عن الباركود...";
+    var detector=new BarcodeDetector({formats:["qr_code"]});
+    (function scan(){
+      if(stopped)return;
+      var vid=document.getElementById("qrVid");
+      if(vid&&vid.videoWidth){
+        detector.detect(vid).then(function(codes){
+          if(stopped)return;
+          if(codes&&codes.length){var text=codes[0].rawValue;close();onDetect(text);return;}
+          timer=setTimeout(scan,350);
+        }).catch(function(){timer=setTimeout(scan,350);});
+      } else timer=setTimeout(scan,350);
+    })();
+  }).catch(function(){
+    var msg=document.getElementById("qrMsg");if(msg)msg.innerHTML='<span style="color:var(--rd)">❌ تعذّر الوصول للكاميرا</span>';
+  });
+}
 /* Camera OCR helpers */
 function camBtn(fieldId){
   return '<button type="button" class="cam-btn" data-field="'+fieldId+'" title="تصوير العداد">📷</button>';
@@ -1780,7 +1859,8 @@ function rDE(){
   dp.innerHTML='<div class="dc"><div class="dt">تسجيل تعبئة وقود</div>'+
     '<div class="obar"><span style="font-size:12.5px;color:var(--dm)">👤 <b style="color:var(--tx)">'+ST_opName+'</b></span>'+
     '<button style="font-size:11px;padding:5px 9px;border-radius:6px;background:var(--p2);border:1px solid var(--brd);color:var(--dm);cursor:pointer" onclick="goChOp()">تغيير</button></div>'+
-    '<div class="fl vp"><label>رقم اللوحة</label><input type="text" id="pS" placeholder="اكتب للبحث..." autocomplete="off" value="'+(v?v.p:"")+'">'+
+    '<div class="fl vp"><label>رقم اللوحة</label><div style="display:flex;gap:6px"><input type="text" id="pS" placeholder="اكتب للبحث..." autocomplete="off" value="'+(v?v.p:"")+'" style="flex:1">'+
+    '<button type="button" id="btnQrScan" class="btn btng" style="padding:0 12px;white-space:nowrap" title="مسح باركود المركبة">📷 QR</button></div>'+
     '<div class="vrs" id="vR"></div></div>'+
     (v?'<div class="vc"><div style="font-size:22px">'+(ref&&ref.u==="hr"?"🚜":"🚗")+'</div><div><div class="vpl">'+v.p+'</div><div class="vds">'+v.u+" · "+(v.m||"")+" · "+(v.l||"")+"</div></div></div>":"")+
     (v?
@@ -1802,6 +1882,19 @@ function rDE(){
   document.querySelectorAll(".cam-btn").forEach(function(btn){
     btn.addEventListener("click",function(){openCamera(this.dataset.field);});
   });
+
+  var qrBtn=document.getElementById("btnQrScan");
+  if(qrBtn)qrBtn.onclick=function(){
+    openQrScan(function(text){
+      var picked=FP[text.trim()];
+      if(!picked){toast("هذا الباركود غير مرتبط بمركبة معروفة","⚠️");return;}
+      if(ST_assignedPlates&&ST_assignedPlates.indexOf(picked.p)<0){toast("هذه المركبة غير مصرَّح لك بها","⚠️");return;}
+      ST_selV=picked;ST_lastReading=null;render();
+      if(fsDB){fsDB.collection("vehicles").doc(picked.p).get().then(function(doc){
+        if(ST_selV===picked){ST_lastReading=doc.exists?doc.data():null;render();}
+      });}
+    });
+  };
 
   /* Approved-station select — reveal free-text fallback for "أخرى" */
   var stSel=document.getElementById("iSt");
