@@ -1618,40 +1618,70 @@ function rOpG(){
   }
 }
 
-/* QR scanning — uses the browser's built-in BarcodeDetector (zero network
-   bytes, no library) where available. A vehicle's QR sticker just encodes its
-   plate number as plain text, matched directly against FP[]. */
+/* QR decoding — the browser's built-in BarcodeDetector (zero network bytes,
+   no library) is used where available; iOS Safari and older Android browsers
+   don't implement it, so those fall back to a small lazy-loaded JS decoder
+   (jsQR) that only ever downloads for a driver who actually needs it. */
+var jsQrLoading=null;
+function loadJsQr(cb){
+  if(window.jsQR){cb(false);return;}
+  if(jsQrLoading){jsQrLoading.push(cb);return;}
+  jsQrLoading=[cb];
+  var done=false;
+  var timer=setTimeout(function(){if(done)return;done=true;var cbs=jsQrLoading;jsQrLoading=null;cbs.forEach(function(f){f(true);});},15000);
+  var s=document.createElement("script");
+  s.src="https://cdn.jsdelivr.net/npm/jsqr@1/dist/jsQR.js";
+  s.onload=function(){if(done)return;done=true;clearTimeout(timer);var cbs=jsQrLoading;jsQrLoading=null;cbs.forEach(function(f){f(false);});};
+  s.onerror=function(){if(done)return;done=true;clearTimeout(timer);var cbs=jsQrLoading;jsQrLoading=null;cbs.forEach(function(f){f(true);});};
+  document.head.appendChild(s);
+}
 function openQrScan(onDetect){
-  if(!("BarcodeDetector" in window)){
-    toast("متصفحك لا يدعم مسح الباركود — استخدم البحث اليدوي","⚠️");
-    return;
-  }
   var modal=document.createElement("div");
   modal.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;";
   modal.innerHTML='<div style="color:#fff;font-size:14px;font-weight:700">وجّه الكاميرا نحو ملصق الباركود على المركبة</div>'+
     '<video id="qrVid" autoplay playsinline style="max-width:340px;width:100%;border-radius:12px;border:2px solid var(--amb)"></video>'+
+    '<canvas id="qrCanvas" style="display:none"></canvas>'+
     '<div id="qrMsg" style="color:var(--dm);font-size:12.5px">⏳ جارٍ فتح الكاميرا...</div>'+
     '<button id="btnQrClose" style="padding:12px 20px;border-radius:10px;background:var(--p2);color:var(--dm);font-size:14px;border:1px solid var(--brd);cursor:pointer">إلغاء</button>';
   document.body.appendChild(modal);
   var stream=null,stopped=false,timer=null;
   function close(){stopped=true;if(timer)clearTimeout(timer);if(stream)stream.getTracks().forEach(function(t){t.stop();});modal.remove();}
   document.getElementById("btnQrClose").onclick=close;
+  function startScanLoop(scanOnce){
+    (function loop(){
+      if(stopped)return;
+      var vid=document.getElementById("qrVid");
+      if(vid&&vid.videoWidth){
+        scanOnce(vid,function(text){if(text){close();onDetect(text);}else timer=setTimeout(loop,300);});
+      } else timer=setTimeout(loop,300);
+    })();
+  }
   navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"},audio:false}).then(function(s){
     if(stopped){s.getTracks().forEach(function(t){t.stop();});return;}
     stream=s;var vid=document.getElementById("qrVid");if(vid)vid.srcObject=s;
     var msg=document.getElementById("qrMsg");if(msg)msg.textContent="🔍 جارٍ البحث عن الباركود...";
-    var detector=new BarcodeDetector({formats:["qr_code"]});
-    (function scan(){
-      if(stopped)return;
-      var vid=document.getElementById("qrVid");
-      if(vid&&vid.videoWidth){
-        detector.detect(vid).then(function(codes){
-          if(stopped)return;
-          if(codes&&codes.length){var text=codes[0].rawValue;close();onDetect(text);return;}
-          timer=setTimeout(scan,350);
-        }).catch(function(){timer=setTimeout(scan,350);});
-      } else timer=setTimeout(scan,350);
-    })();
+    if("BarcodeDetector" in window){
+      var detector=new BarcodeDetector({formats:["qr_code"]});
+      startScanLoop(function(vidEl,cb){
+        detector.detect(vidEl).then(function(codes){cb(codes&&codes.length?codes[0].rawValue:null);}).catch(function(){cb(null);});
+      });
+    } else {
+      if(msg)msg.textContent="⏳ جارٍ تحميل أداة القراءة (أول مرة فقط)...";
+      loadJsQr(function(failed){
+        if(stopped)return;
+        if(failed){if(msg)msg.innerHTML='<span style="color:var(--rd)">❌ تعذّر تحميل أداة القراءة — تأكد من الاتصال أو أدخل اللوحة يدوياً</span>';return;}
+        if(msg)msg.textContent="🔍 جارٍ البحث عن الباركود...";
+        var canvas=document.getElementById("qrCanvas");
+        startScanLoop(function(vidEl,cb){
+          canvas.width=vidEl.videoWidth;canvas.height=vidEl.videoHeight;
+          var ctx=canvas.getContext("2d");
+          ctx.drawImage(vidEl,0,0,canvas.width,canvas.height);
+          var img=ctx.getImageData(0,0,canvas.width,canvas.height);
+          var code=window.jsQR(img.data,img.width,img.height);
+          cb(code?code.data:null);
+        });
+      });
+    }
   }).catch(function(){
     var msg=document.getElementById("qrMsg");if(msg)msg.innerHTML='<span style="color:var(--rd)">❌ تعذّر الوصول للكاميرا</span>';
   });
