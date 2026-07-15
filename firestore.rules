@@ -17,6 +17,14 @@ service cloud.firestore {
       return exists(/databases/$(database)/documents/config/lockdown) &&
         get(/databases/$(database)/documents/config/lockdown).data.locked == true;
     }
+    // Owner-toggleable expansions of what a regular admin may do — an unset
+    // flag (missing doc, or missing key) means "off", matching the client's
+    // safe defaults.
+    function featureFlag(key) {
+      return exists(/databases/$(database)/documents/config/featureFlags) &&
+        key in get(/databases/$(database)/documents/config/featureFlags).data &&
+        get(/databases/$(database)/documents/config/featureFlags).data[key] == true;
+    }
     // A driver name with no driverAssignments doc is unrestricted (backward
     // compatible with every driver that predates this feature). One with a doc
     // may only log the plates listed in it.
@@ -66,8 +74,8 @@ service cloud.firestore {
       // dismissed/approved by the owner — a regular admin (who might be the
       // one covering for a driver) can only review yellow/orange/spot-checked.
       allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reviewed'])
-        && (isOwner() || (isAdminOrOwner() && resource.data.st != 'red'));
-      allow delete: if isOwner();
+        && (isOwner() || (isAdminOrOwner() && (resource.data.st != 'red' || featureFlag('adminCanReviewRed'))));
+      allow delete: if isOwner() || (isAdminOrOwner() && featureFlag('adminCanDeleteLogs'));
     }
 
     // Denormalized "latest reading" per vehicle — lets drivers see/prefill the
@@ -155,6 +163,17 @@ service cloud.firestore {
         && request.resource.data.locked is bool
         && request.resource.data.by is string
         && request.resource.data.at == request.time;
+    }
+
+    // Owner's master switches for optional driver/admin features. Any
+    // signed-in client needs to read it (drivers' clients check flags like
+    // driverPinRequired before rendering their flow), only the owner can flip
+    // it. Boolean-only map — validated key-by-key isn't practical since the
+    // key set grows with each new toggle, so this trusts the owner-only write
+    // gate instead.
+    match /config/featureFlags {
+      allow read: if isSignedIn();
+      allow write: if isOwner();
     }
 
     // Per-device heartbeat written on every driver login — lets a driver's own

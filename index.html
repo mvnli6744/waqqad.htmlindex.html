@@ -170,6 +170,15 @@ var fbDB=null, fbReady=false, fsDB=null;
 var CUR_USER=null;
 var LOGS_CACHE=[], ADMINS_CACHE=[], OV_CACHE={a:[],d:[]}, DRIVERS_CACHE=[], STATIONS_CACHE=[];
 var SITE_BUDGETS_CACHE={}, DRIVER_EXP_CACHE={};
+/* Owner-toggleable feature flags. Defaults here are the SAFE/current behavior
+   — an untouched config doc must never silently change what already ships. */
+var FEATURE_FLAG_DEFAULTS={
+  driverPinRequired:true, driverIqamaRequired:true, driverSpotCheck:true,
+  driverTankCapCheck:true, driverQrEnabled:true,
+  adminCanReviewRed:false, adminCanDeleteLogs:false
+};
+var FEATURE_FLAGS={};
+function flagOn(key){return FEATURE_FLAGS[key]!=null?FEATURE_FLAGS[key]:FEATURE_FLAG_DEFAULTS[key];}
 var RM_BASE=RM, RM_OV_CACHE={}, MAINT_CACHE=[], AUDIT_CACHE=[], DOC_OV_CACHE={};
 var LOCKDOWN=false;
 
@@ -234,6 +243,10 @@ function initFB(){
       },function(){});
       fsDB.collection("siteBudgets").doc("current").onSnapshot(function(doc){
         SITE_BUDGETS_CACHE=doc.exists?(doc.data().budgets||{}):{};
+        if(document.getElementById("MP"))renderPage();
+      },function(){});
+      fsDB.collection("config").doc("featureFlags").onSnapshot(function(doc){
+        FEATURE_FLAGS=doc.exists?doc.data():{};
         if(document.getElementById("MP"))renderPage();
       },function(){});
       fsDB.collection("refRates").doc("current").onSnapshot(function(doc){
@@ -524,7 +537,7 @@ function toggleLockdown(){
 var ON=[["dash","لوحة المالك","📊"],["act","النشاط الحي","📡"],["drv","السائقون","🏆"],
         ["alrt","التنبيهات","🚨"],["log","سجل التعبئة","📝"],["flt","الأسطول","🚛"],
         ["fmg","إدارة الأسطول","🚗"],["drvm","إدارة السائقين","👤"],["usr","المستخدمون","🔑"],
-        ["rates","معدلات الاستهلاك","🎯"],["maint","الصيانة والأعطال","🔧"],["docs","الوثائق","📄"],["roi","الجدوى","💡"],["audit","سجل التدقيق","🕵️"]];
+        ["rates","معدلات الاستهلاك","🎯"],["maint","الصيانة والأعطال","🔧"],["docs","الوثائق","📄"],["roi","الجدوى","💡"],["audit","سجل التدقيق","🕵️"],["feat","التحكم بالميزات","🎛️"]];
 var AN=[["dash","لوحة التحكم","📊"],["alrt","التنبيهات","🚨"],["log","سجل التعبئة","📝"],
         ["flt","الأسطول","🚛"],["maint","الصيانة والأعطال","🔧"],["docs","الوثائق","📄"],["roi","الجدوى","💡"]];
 function navH(nav,cls){return nav.map(function(n){return '<button class="'+cls+(ST_page===n[0]?" on":"")+" npg"+'" data-pg="'+n[0]+'">'+n[2]+" "+n[1]+"</button>";}).join("");}
@@ -631,6 +644,7 @@ function renderPage(){
   else if(ST_page==="drvm"){mp.innerHTML=pDrvM();bndDrvM();}
   else if(ST_page==="rates"){mp.innerHTML=pRates();bndRates();}
   else if(ST_page==="roi"){mp.innerHTML=pROI(logs);bndROI();}
+  else if(ST_page==="feat"){mp.innerHTML=pFeatures();bndFeatures();}
   var bpr=document.getElementById("btnPrint");if(bpr)bpr.onclick=function(){printReport(logs);};
 }
 /* ── Lightweight inline-SVG charts (no charting library — a few hundred bytes vs. hundreds of KB) ── */
@@ -752,7 +766,7 @@ function pAlrt(logs){
     var a=al[i];
     var dotCls=a.st==="red"?"red":a.st==="orange"?"orange":"spot";
     var isRed=a.st==="red";
-    var canReview=!isRed||ST_role==="owner";
+    var canReview=!isRed||ST_role==="owner"||(ST_role==="admin"&&flagOn("adminCanReviewRed"));
     r+='<div class="arow"><div class="adot '+dotCls+'"></div><div style="flex:1"><div style="font-size:13px;font-weight:700">'+a.plate+(a.reviewed?' <span class="bg gray">راجعت</span>':"")+(a.spot&&a.st==="green"?' <span class="bg blue">فحص عشوائي</span>':"")+(isRed?' <span class="bg red">حرج — للمالك فقط</span>':"")+'</div><div style="font-size:11px;color:var(--dm);margin-top:3px">'+a.date+" · "+(a.driverName||"—")+" · "+fmt(a.ar,2)+" vs "+fmt(a.ref,2)+" · "+(a.dev!=null?(a.dev>=0?"+":"")+pct(a.dev):"—")+"</div></div>"+(a.reviewed?"":canReview?'<button class="btn btng" style="font-size:10.5px;padding:5px 9px" data-rvid="'+a.id+'">مراجعة</button>':'<span style="font-size:10.5px;color:var(--fn)">بانتظار المالك</span>')+"</div>";
   }
   return r+"</div>";
@@ -784,10 +798,11 @@ function loadWhosOnline(){
     el.innerHTML=online.map(function(v){var mins=Math.max(0,Math.round((Date.now()-(v.at&&v.at.toDate?v.at.toDate().getTime():Date.now()))/60000));return '<span class="bg green" style="display:inline-flex;margin:2px 4px 2px 0">'+v.driverName+' · منذ '+mins+' د</span>';}).join("");
   }).catch(function(){var el=document.getElementById("onlineNow");if(el)el.textContent="تعذّر التحميل";});
 }
-function pLog(){var isOwn=ST_role==="owner";return '<div class="ph"><h1>سجل التعبئة</h1></div><div class="tbar"><input class="ti" id="lS" placeholder="ابحث..."><select class="ts" id="lF"><option value="">كل الحالات</option><option value="green">🟢 طبيعي</option><option value="yellow">🟡 انحراف</option><option value="orange">🟠 مراجعة</option><option value="red">🔴 إهدار</option></select><button class="btn btng" id="btnExp">⬇️ CSV</button>'+(isOwn?'<button class="btn btnp" id="btnMlOpen">➕ إضافة عملية يدوياً</button>':"")+'</div><div class="card" style="padding:0"><div class="tw" style="max-height:450px;overflow-y:auto"><table><thead><tr><th>التاريخ</th><th>الوقت</th><th>اللوحة</th><th>الاستخدام</th><th>السابقة</th><th>الحالية</th><th>اللتر</th><th>الفعلي</th><th>المرجعي</th><th>الانحراف</th><th>الحالة</th><th>السائق</th><th>الموقع</th>'+(isOwn?"<th></th>":"")+'</tr></thead><tbody id="lTb"></tbody></table></div></div>';}
+function pLog(){var isOwn=ST_role==="owner";var canDelete=isOwn||(ST_role==="admin"&&flagOn("adminCanDeleteLogs"));return '<div class="ph"><h1>سجل التعبئة</h1></div><div class="tbar"><input class="ti" id="lS" placeholder="ابحث..."><select class="ts" id="lF"><option value="">كل الحالات</option><option value="green">🟢 طبيعي</option><option value="yellow">🟡 انحراف</option><option value="orange">🟠 مراجعة</option><option value="red">🔴 إهدار</option></select><button class="btn btng" id="btnExp">⬇️ CSV</button>'+(isOwn?'<button class="btn btnp" id="btnMlOpen">➕ إضافة عملية يدوياً</button>':"")+'</div><div class="card" style="padding:0"><div class="tw" style="max-height:450px;overflow-y:auto"><table><thead><tr><th>التاريخ</th><th>الوقت</th><th>اللوحة</th><th>الاستخدام</th><th>السابقة</th><th>الحالية</th><th>اللتر</th><th>الفعلي</th><th>المرجعي</th><th>الانحراف</th><th>الحالة</th><th>السائق</th><th>الموقع</th>'+(canDelete?"<th></th>":"")+'</tr></thead><tbody id="lTb"></tbody></table></div></div>';}
 function rLR(){
   var isOwn=ST_role==="owner";
-  var s=(document.getElementById("lS")||{value:""}).value.trim();var fv=(document.getElementById("lF")||{value:""}).value;var rows=loadLogs();if(s)rows=rows.filter(function(l){return l.plate.includes(s)||(l.driverName||"").includes(s);});if(fv)rows=rows.filter(function(l){return l.st===fv;});var tb=document.getElementById("lTb");if(!tb)return;if(!rows.length){tb.innerHTML="<tr><td colspan='"+(isOwn?14:13)+"' style='text-align:center;padding:20px;color:var(--fn)'>لا نتائج</td></tr>";return;}var h="";for(var i=0;i<rows.length;i++){var l=rows[i];var v=FP[l.plate];h+="<tr><td class='num'>"+l.date+"</td><td class='num'>"+(l.time||"—")+"</td><td class='num'>"+l.plate+"</td><td>"+(v?v.u:"")+"</td><td class='num'>"+fmt(l.prev,0)+"</td><td class='num'>"+fmt(l.curr,0)+"</td><td class='num'>"+fmt(l.liters,1)+"</td><td class='num'>"+fmt(l.ar,2)+"</td><td class='num'>"+fmt(l.ref,2)+"</td><td class='num'>"+(l.dev!=null?(l.dev>=0?"+":"")+pct(l.dev):"—")+"</td><td><span class='bg "+l.st+"'>"+l.sl+"</span></td><td>"+(l.driverName||"—")+"</td><td>"+(l.station||"—")+(l.photoPrev||l.photoCurr?' <a href="'+(l.photoCurr||l.photoPrev)+'" target="_blank" rel="noopener" title="عرض صورة العداد">📷</a>':"")+"</td>"+(isOwn?"<td><button class='btn btnd' style='font-size:10px;padding:4px 8px' data-dellog='"+l.id+"' data-delplate='"+l.plate+"'>حذف</button></td>":"")+"</tr>";}tb.innerHTML=h;
+  var canDelete=isOwn||(ST_role==="admin"&&flagOn("adminCanDeleteLogs"));
+  var s=(document.getElementById("lS")||{value:""}).value.trim();var fv=(document.getElementById("lF")||{value:""}).value;var rows=loadLogs();if(s)rows=rows.filter(function(l){return l.plate.includes(s)||(l.driverName||"").includes(s);});if(fv)rows=rows.filter(function(l){return l.st===fv;});var tb=document.getElementById("lTb");if(!tb)return;if(!rows.length){tb.innerHTML="<tr><td colspan='"+(canDelete?14:13)+"' style='text-align:center;padding:20px;color:var(--fn)'>لا نتائج</td></tr>";return;}var h="";for(var i=0;i<rows.length;i++){var l=rows[i];var v=FP[l.plate];h+="<tr><td class='num'>"+l.date+"</td><td class='num'>"+(l.time||"—")+"</td><td class='num'>"+l.plate+"</td><td>"+(v?v.u:"")+"</td><td class='num'>"+fmt(l.prev,0)+"</td><td class='num'>"+fmt(l.curr,0)+"</td><td class='num'>"+fmt(l.liters,1)+"</td><td class='num'>"+fmt(l.ar,2)+"</td><td class='num'>"+fmt(l.ref,2)+"</td><td class='num'>"+(l.dev!=null?(l.dev>=0?"+":"")+pct(l.dev):"—")+"</td><td><span class='bg "+l.st+"'>"+l.sl+"</span></td><td>"+(l.driverName||"—")+"</td><td>"+(l.station||"—")+(l.photoPrev||l.photoCurr?' <a href="'+(l.photoCurr||l.photoPrev)+'" target="_blank" rel="noopener" title="عرض صورة العداد">📷</a>':"")+"</td>"+(canDelete?"<td><button class='btn btnd' style='font-size:10px;padding:4px 8px' data-dellog='"+l.id+"' data-delplate='"+l.plate+"'>حذف</button></td>":"")+"</tr>";}tb.innerHTML=h;
   var lsi=document.getElementById("lS"),lfi=document.getElementById("lF"),bex=document.getElementById("btnExp");if(lsi)lsi.oninput=rLR;if(lfi)lfi.onchange=rLR;if(bex)bex.onclick=expCsv;
   var mlo=document.getElementById("btnMlOpen");if(mlo)mlo.onclick=openManualLog;
   document.querySelectorAll("[data-dellog]").forEach(function(btn){btn.addEventListener("click",function(){
@@ -1455,6 +1470,44 @@ function bndROI(){
     }).catch(function(){toast("تعذّر الحفظ","❌");});
   };
 }
+/* ── Feature control panel (owner-only master switches) ── */
+var FEATURE_DEFS=[
+  {key:"driverPinRequired",group:"driver",label:"رمز الدخول (PIN) إجباري لكل سائق",desc:"لو أطفيته، السائقين اللي عندهم رمز مسجّل ما راح يُطلب منهم إدخاله."},
+  {key:"driverIqamaRequired",group:"driver",label:"تصوير الإقامة إجباري أول تسجيل",desc:"لو أطفيته، سائق جديد يدخل مباشرة بدون تصوير إقامة."},
+  {key:"driverSpotCheck",group:"driver",label:"الفحص العشوائي على العمليات الطبيعية",desc:"تعليم 10% من العمليات الخضراء للمراجعة العشوائية."},
+  {key:"driverTankCapCheck",group:"driver",label:"فحص سعة الخزان القصوى",desc:"رفض كمية وقود تتجاوز السعة المتوقعة لنوع المركبة."},
+  {key:"driverQrEnabled",group:"driver",label:"زر مسح باركود المركبة (QR)",desc:"يظهر للسائق زر مسح الباركود بدل البحث اليدوي فقط."},
+  {key:"adminCanReviewRed",group:"admin",label:"السماح للمشرفين بمراجعة تنبيهات \"أحمر\" الحرجة",desc:"افتراضياً هذي حصراً للمالك فقط."},
+  {key:"adminCanDeleteLogs",group:"admin",label:"السماح للمشرفين بحذف عمليات تعبئة",desc:"افتراضياً حذف العمليات حصراً للمالك فقط."}
+];
+function pFeatures(){
+  if(!ST_admin||!ST_admin.isOwner)return '<div class="card">'+es("🔒","للمالك فقط","")+"</div>";
+  var r='<div class="ph"><h1>🎛️ التحكم بالميزات</h1><p>فعّل أو أطفئ أي ميزة للسائقين أو المشرفين بنفسك — التغيير يطبّق فوراً على كل الأجهزة.</p></div>';
+  ["driver","admin"].forEach(function(g){
+    r+='<div class="card"><div class="ch"><h2>'+(g==="driver"?"🚚 صلاحيات السائقين":"🛡️ صلاحيات المشرفين")+'</h2></div>';
+    FEATURE_DEFS.filter(function(f){return f.group===g;}).forEach(function(f){
+      var on=flagOn(f.key);
+      r+='<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--brd)">'+
+        '<div style="flex:1"><div style="font-weight:700;font-size:13px">'+f.label+'</div><div style="font-size:11px;color:var(--dm);margin-top:2px">'+f.desc+'</div></div>'+
+        '<label style="display:inline-flex;align-items:center;cursor:pointer"><input type="checkbox" data-featkey="'+f.key+'" '+(on?"checked":"")+' style="width:18px;height:18px;cursor:pointer"></label>'+
+        '</div>';
+    });
+    r+="</div>";
+  });
+  return r;
+}
+function bndFeatures(){
+  document.querySelectorAll("[data-featkey]").forEach(function(cb){
+    cb.addEventListener("change",function(){
+      var key=cb.dataset.featkey,val=cb.checked;
+      var patch={};patch[key]=val;
+      fsDB.collection("config").doc("featureFlags").set(patch,{merge:true}).then(function(){
+        logAudit("تعديل ميزة",key+" → "+(val?"مفعّلة":"معطّلة"));
+        toast(val?"تم التفعيل":"تم الإيقاف","✅");
+      }).catch(function(){toast("تعذّر الحفظ","❌");cb.checked=!val;});
+    });
+  });
+}
 function pROI(logs){var a=agg(logs),sv=a.wasteCost*12*0.7;return '<div class="ph" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px"><div><h1>الجدوى المالية</h1><p>بناءً على '+logs.length+' عملية · التكلفة محسوبة حسب نوع الوقود لكل مركبة (بنزين 91 / ديزل).</p></div><button class="btn btng" id="btnPrint" style="white-space:nowrap">🖨️ تصدير تقرير PDF</button></div><div class="kg"><div class="kc kct"><div class="kb"></div><div class="kl">إجمالي اللترات</div><div class="kv">'+fmt(a.tot,0)+'</div></div><div class="kc kca"><div class="kb"></div><div class="kl">التكلفة (ريال)</div><div class="kv">'+fmt(a.cost,0)+'</div></div><div class="kc kcr"><div class="kb"></div><div class="kl">قيمة الإهدار</div><div class="kv">'+fmt(a.wasteCost,0)+'</div></div><div class="kc kct"><div class="kb"></div><div class="kl">وفورات سنوية</div><div class="kv">'+fmt(sv,0)+'</div></div></div><div class="card"><div class="ch"><h2>متوسط الإهدار</h2></div><div style="font-size:26px;font-weight:800;color:'+(a.avg!=null&&Math.abs(a.avg)>0.2?"var(--rd)":"var(--tl)")+';">'+(a.avg!=null?pct(Math.abs(a.avg)):"—")+'</div></div><div class="card"><div class="ch"><h2>مقارنة الإهدار بين المواقع</h2></div>'+locSummaryHtml(logs)+'</div><div class="card"><div class="ch"><h2>🎯 ميزانيات المواقع الشهرية</h2></div>'+siteBudgetHtml(logs)+'</div>';}
 
 /* ── DRIVER MODE ── */
@@ -1511,8 +1564,15 @@ function checkDriverIdOnFile(name){
      photo back (that stays admin/owner-only). */
   fsDB.collection("driverIdFlags").doc(name).get().then(function(doc){
     if(!document.getElementById("DP"))return;
-    if(doc.exists)renderPinCheck(name);else renderIdCapture(name);
-  }).catch(function(){if(document.getElementById("DP"))renderIdCapture(name);});
+    if(doc.exists){
+      if(flagOn("driverPinRequired"))renderPinCheck(name);else enterFuelFlow(name);
+    } else {
+      if(flagOn("driverIqamaRequired"))renderIdCapture(name);else enterFuelFlow(name);
+    }
+  }).catch(function(){
+    if(!document.getElementById("DP"))return;
+    if(flagOn("driverIqamaRequired"))renderIdCapture(name);else enterFuelFlow(name);
+  });
 }
 /* PIN is verified without ever letting a driver's client read the correct PIN
    back: the client "guesses" by writing that guess into a scratch field, and a
@@ -1890,7 +1950,7 @@ function rDE(){
     '<div class="obar"><span style="font-size:12.5px;color:var(--dm)">👤 <b style="color:var(--tx)">'+ST_opName+'</b></span>'+
     '<button style="font-size:11px;padding:5px 9px;border-radius:6px;background:var(--p2);border:1px solid var(--brd);color:var(--dm);cursor:pointer" onclick="goChOp()">تغيير</button></div>'+
     '<div class="fl vp"><label>رقم اللوحة</label><div style="display:flex;gap:6px"><input type="text" id="pS" placeholder="اكتب للبحث..." autocomplete="off" value="'+(v?v.p:"")+'" style="flex:1">'+
-    '<button type="button" id="btnQrScan" class="btn btng" style="padding:0 12px;white-space:nowrap" title="مسح باركود المركبة">📷 QR</button></div>'+
+    (flagOn("driverQrEnabled")?'<button type="button" id="btnQrScan" class="btn btng" style="padding:0 12px;white-space:nowrap" title="مسح باركود المركبة">📷 QR</button>':"")+'</div>'+
     '<div class="vrs" id="vR"></div></div>'+
     (v?'<div class="vc"><div style="font-size:22px">'+(ref&&ref.u==="hr"?"🚜":"🚗")+'</div><div><div class="vpl">'+v.p+'</div><div class="vds">'+v.u+" · "+(v.m||"")+" · "+(v.l||"")+"</div></div></div>":"")+
     (v?
@@ -1967,14 +2027,16 @@ function rDE(){
     if(station==="__other__")station=(document.getElementById("iStOther")||{value:""}).value;
     var notes=(document.getElementById("iNo")||{value:""}).value;
     if(isNaN(prev)||isNaN(curr)||isNaN(liters)||liters<=0||curr<=prev){toast("تأكد من صحة القراءات (الحالية أكبر من السابقة)","⚠️");return;}
-    var cap=tankCapFor(ST_selV.p);
-    if(liters>cap){toast("الكمية ("+fmt(liters,0)+" لتر) تتجاوز السعة المتوقعة لهذا النوع (~"+cap+" لتر) — تأكد من الرقم أو تواصل مع المشرف","⚠️");return;}
+    if(flagOn("driverTankCapCheck")){
+      var cap=tankCapFor(ST_selV.p);
+      if(liters>cap){toast("الكمية ("+fmt(liters,0)+" لتر) تتجاوز السعة المتوقعة لهذا النوع (~"+cap+" لتر) — تأكد من الرقم أو تواصل مع المشرف","⚠️");return;}
+    }
     sb.disabled=true;sb.textContent="جارٍ الحفظ...";
     var c=calcE(ST_selV.p,prev,curr,liters);
     var entry={plate:ST_selV.p,date:new Date().toISOString().slice(0,10),time:new Date().toTimeString().slice(0,5),prev:prev,curr:curr,liters:liters,station:station,notes:notes,driverName:ST_drvName,ar:c.ar,dev:c.dev,st:c.st,sl:c.sl,ref:c.ref,un:c.un,reviewed:false};
     /* Random spot-check: even "normal" entries get pulled for review sometimes,
        so a driver can't learn the deviation thresholds and stay just under them. */
-    if(c.st==="green"&&Math.random()<0.1)entry.spot=true;
+    if(flagOn("driverSpotCheck")&&c.st==="green"&&Math.random()<0.1)entry.spot=true;
     var photos={prev:ST_capturedPhotos.iPr||null,curr:ST_capturedPhotos.iCr||null};
     saveLog(entry,photos,function(ok){
       if(!ok){toast("تعذّر الحفظ","❌");sb.disabled=false;sb.textContent="✅ تسجيل العملية";return;}
